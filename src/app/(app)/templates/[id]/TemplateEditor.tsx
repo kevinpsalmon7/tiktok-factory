@@ -18,6 +18,8 @@ import {
   FileText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { FontPicker } from '@/components/FontPicker'
+import { ReferencesPanel } from '@/components/TemplateBuilder/ReferencesPanel'
 import type {
   TemplateLayout,
   TemplateElement,
@@ -43,7 +45,7 @@ type InitialTemplate = {
   platforms: string[]
 }
 
-type Tab = 'design' | 'style' | 'prompt' | 'gemini'
+type Tab = 'design' | 'style' | 'prompt' | 'gemini' | 'references'
 
 const SLIDE_TYPES = ['title', 'content', 'cta'] as const
 
@@ -243,6 +245,9 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         <TabButton active={tab === 'gemini'} onClick={() => setTab('gemini')}>
           Images (Gemini)
         </TabButton>
+        <TabButton active={tab === 'references'} onClick={() => setTab('references')}>
+          Références visuelles
+        </TabButton>
       </div>
 
       {/* Content */}
@@ -356,7 +361,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
             onChange={(e) => setCarouselInstructions(e.target.value)}
           />
         </div>
-      ) : (
+      ) : tab === 'gemini' ? (
         <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
           <h2 className="font-display text-xl font-semibold mb-1">Instructions image (Gemini)</h2>
           <p className="text-sm text-ink-600 mb-4">
@@ -368,6 +373,10 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
             value={geminiInstructions}
             onChange={(e) => setGeminiInstructions(e.target.value)}
           />
+        </div>
+      ) : (
+        <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
+          <ReferencesPanel templateId={initialTemplate.id} />
         </div>
       )}
     </div>
@@ -626,11 +635,13 @@ function TextProperties({
           </select>
         </div>
       </div>
-      <TextField
-        label="Police"
-        value={element.fontFamily}
-        onChange={(v) => onChange({ fontFamily: v })}
-      />
+      <div>
+        <label className="block text-[10px] text-ink-600 mb-0.5">Police</label>
+        <FontPicker
+          value={element.fontFamily}
+          onChange={(v) => onChange({ fontFamily: v })}
+        />
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <ColorField
           label="Couleur"

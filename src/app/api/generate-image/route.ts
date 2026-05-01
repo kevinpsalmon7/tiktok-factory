@@ -4,6 +4,7 @@ import { generateImage } from '@/lib/gemini'
 
 type ProfileRow = { gemini_api_key: string | null }
 type TemplateRow = { gemini_instructions: string }
+type ReferenceRow = { storage_path: string }
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -50,11 +51,34 @@ export async function POST(request: Request) {
     )
   }
 
+  // Load reference images for this template
+  const { data: refs } = await supabase
+    .from('template_references')
+    .select('storage_path')
+    .eq('template_id', templateId)
+    .eq('user_id', user.id)
+    .order('position', { ascending: true })
+    .returns<ReferenceRow[]>()
+
+  const referenceImages: { data: Buffer; mimeType: string }[] = []
+  for (const ref of refs || []) {
+    const { data: blob, error } = await supabase.storage
+      .from('template-references')
+      .download(ref.storage_path)
+    if (error || !blob) continue
+    const arrayBuf = await blob.arrayBuffer()
+    referenceImages.push({
+      data: Buffer.from(arrayBuf),
+      mimeType: blob.type || 'image/jpeg',
+    })
+  }
+
   try {
     const imageBytes = await generateImage({
       apiKey,
       styleInstructions: template.gemini_instructions,
       illustrationPrompt,
+      referenceImages,
     })
 
     // Upload to Supabase Storage
@@ -72,7 +96,11 @@ export async function POST(request: Request) {
 
     const { data: urlData } = supabase.storage.from('carousel-slides').getPublicUrl(path)
 
-    return NextResponse.json({ url: urlData.publicUrl, path })
+    return NextResponse.json({
+      url: urlData.publicUrl,
+      path,
+      referenceCount: referenceImages.length,
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
