@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+}
+
+html, body {
+  background: #faf8f3;
+  color: #0f0f0f;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar style */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d4cdbe; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #b8ae98; }
+
+/* Chip / tag buttons used throughout */
+.chip {
+  @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium;
+}
+
+/* Pastel card helper */
+.pastel-card {
+  @apply rounded-xl2 p-5 shadow-soft transition-shadow hover:shadow-card;
+}
+
+/* Inputs */
+.input {
+  @apply w-full px-4 py-2.5 rounded-xl border border-cream-200 bg-white text-sm
+         focus:outline-none focus:ring-2 focus:ring-ink-900/10 focus:border-ink-900
+         placeholder:text-ink-600/40 transition;
+}
+
+.textarea {
+  @apply input resize-none;
+}
