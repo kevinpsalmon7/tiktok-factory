@@ -132,6 +132,10 @@ export interface Database {
 
 export type TemplateElementType = 'text' | 'image' | 'rect'
 
+// Semantic role: what kind of content this text block holds.
+// The generator (Claude) fills each role with appropriate copy.
+export type TextRole = 'title' | 'subtitle' | 'text' | 'cta'
+
 export interface BaseElement {
   id: string
   type: TemplateElementType
@@ -139,20 +143,21 @@ export interface BaseElement {
   y: number
   width: number
   height: number
-  rotation?: number
   opacity?: number
   zIndex: number
-  slideTypes?: string[] // which slide_types this element applies to (e.g., ['title', 'content'])
+  slideType: string // which slide type this element belongs to (exactly one)
 }
 
 export interface TextElement extends BaseElement {
   type: 'text'
-  field: string // field name in slide data (e.g., 'heading_text', 'body_text')
+  role: TextRole // semantic role — replaces free-form field name
   fontSize: number
   fontFamily: string
   fontWeight?: number | string
   color: string
   backgroundColor?: string
+  // 'block' = bg fills the whole box. 'inline' = bg tightly hugs the text.
+  bgMode?: 'block' | 'inline'
   align?: 'left' | 'center' | 'right'
   padding?: number
   lineHeight?: number
@@ -176,11 +181,23 @@ export interface RectElement extends BaseElement {
 
 export type TemplateElement = TextElement | ImageElement | RectElement
 
+export interface TemplatePadding {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
 export interface TemplateLayout {
   width: number // canvas width (default 1080)
   height: number // canvas height (default 1920)
   backgroundColor?: string
   elements: TemplateElement[]
+  // Ordered list of slide type names the carousel can use (e.g., ['title', 'content', 'cta']).
+  // User-editable through the builder.
+  slideTypes: string[]
+  // Safe area / inner padding shown as guides in the builder (visual only).
+  padding?: TemplatePadding
 }
 
 // ── Carousel slide types ──────────────────────────────────────────────────

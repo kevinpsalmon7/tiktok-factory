@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import {
@@ -13,9 +13,12 @@ import {
   Square,
   ChevronUp,
   ChevronDown,
-  Eye,
-  EyeOff,
   FileText,
+  Undo2,
+  Redo2,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { FontPicker } from '@/components/FontPicker'
@@ -26,9 +29,9 @@ import type {
   TextElement,
   ImageElement,
   RectElement,
+  TextRole,
 } from '@/types/database'
 
-// Konva requires a window object — load canvas client-side only
 const BuilderCanvas = dynamic(
   () => import('@/components/TemplateBuilder/Canvas').then((m) => m.BuilderCanvas),
   { ssr: false }
@@ -47,34 +50,107 @@ type InitialTemplate = {
 
 type Tab = 'design' | 'style' | 'prompt' | 'gemini' | 'references'
 
-const SLIDE_TYPES = ['title', 'content', 'cta'] as const
+const HISTORY_LIMIT = 10
+
+const ROLE_OPTIONS: { value: TextRole; label: string }[] = [
+  { value: 'title', label: 'Titre' },
+  { value: 'subtitle', label: 'Sous-titre' },
+  { value: 'text', label: 'Texte' },
+  { value: 'cta', label: 'CTA' },
+]
 
 export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTemplate }) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('design')
   const [name, setName] = useState(initialTemplate.name)
-  const [description, setDescription] = useState(initialTemplate.description)
-  const [layout, setLayout] = useState<TemplateLayout>(initialTemplate.layout)
+  const [description] = useState(initialTemplate.description)
   const [styleGuide, setStyleGuide] = useState(initialTemplate.style_guide)
   const [carouselInstructions, setCarouselInstructions] = useState(
     initialTemplate.carousel_instructions
   )
   const [geminiInstructions, setGeminiInstructions] = useState(initialTemplate.gemini_instructions)
+
+  // Normalize incoming layout so older saves still work with the new model.
+  const normalizedInitial = useMemo(
+    () => normalizeLayout(initialTemplate.layout),
+    [initialTemplate.layout]
+  )
+
+  // Layout history for undo/redo
+  const [history, setHistory] = useState<TemplateLayout[]>([normalizedInitial])
+  const [historyIndex, setHistoryIndex] = useState(0)
+  const layout = history[historyIndex]
+
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [activeSlideType, setActiveSlideType] = useState<(typeof SLIDE_TYPES)[number]>('content')
+  const [activeSlideType, setActiveSlideType] = useState<string>(
+    normalizedInitial.slideTypes[0] || 'content'
+  )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [renamingType, setRenamingType] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
 
-  // Responsive stage sizing
+  // Push a new layout state onto the history stack (capped at HISTORY_LIMIT)
+  const pushLayout = useCallback(
+    (next: TemplateLayout | ((prev: TemplateLayout) => TemplateLayout)) => {
+      setHistory((hist) => {
+        const base = hist[historyIndex]
+        const nextLayout = typeof next === 'function' ? next(base) : next
+        const truncated = hist.slice(0, historyIndex + 1)
+        const pushed = [...truncated, nextLayout]
+        const overflow = pushed.length - HISTORY_LIMIT
+        if (overflow > 0) pushed.splice(0, overflow)
+        setHistoryIndex(pushed.length - 1)
+        return pushed
+      })
+    },
+    [historyIndex]
+  )
+
+  const canUndo = historyIndex > 0
+  const canRedo = historyIndex < history.length - 1
+
+  const undo = useCallback(() => {
+    if (canUndo) setHistoryIndex((i) => i - 1)
+  }, [canUndo])
+  const redo = useCallback(() => {
+    if (canRedo) setHistoryIndex((i) => i + 1)
+  }, [canRedo])
+
+  // Keyboard shortcuts: Cmd/Ctrl+Z = undo, Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y = redo
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const isEditing =
+        document.activeElement &&
+        ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)
+      if (isEditing) return
+      const meta = e.metaKey || e.ctrlKey
+      if (!meta) return
+      if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
+
+  // Responsive stage sizing — re-measure when layout or tab changes so that
+  // coming back to the Design tab shows the canvas at the right size.
   const stageWrapperRef = useRef<HTMLDivElement>(null)
   const [stageSize, setStageSize] = useState({ w: 420, h: 747 })
   useEffect(() => {
+    if (tab !== 'design') return
     const el = stageWrapperRef.current
     if (!el) return
-    const ro = new ResizeObserver(() => {
+    const measure = () => {
       const availW = el.clientWidth - 24
       const availH = el.clientHeight - 24
+      if (availW <= 0 || availH <= 0) return
       const ratio = layout.height / layout.width
       let w = availW
       let h = w * ratio
@@ -83,17 +159,28 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         w = h / ratio
       }
       setStageSize({ w: Math.floor(w), h: Math.floor(h) })
-    })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [layout.width, layout.height])
+  }, [layout.width, layout.height, tab])
 
   const selectedElement = layout.elements.find((el) => el.id === selectedId) || null
 
+  // Ensure active slide type is always valid
+  useEffect(() => {
+    if (!layout.slideTypes.includes(activeSlideType)) {
+      setActiveSlideType(layout.slideTypes[0] || '')
+    }
+  }, [layout.slideTypes, activeSlideType])
+
   function updateElement(id: string, patch: Partial<TemplateElement>) {
-    setLayout((l) => ({
+    pushLayout((l) => ({
       ...l,
-      elements: l.elements.map((el) => (el.id === id ? ({ ...el, ...patch } as TemplateElement) : el)),
+      elements: l.elements.map((el) =>
+        el.id === id ? ({ ...el, ...patch } as TemplateElement) : el
+      ),
     }))
   }
 
@@ -108,21 +195,22 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
       height: type === 'text' ? 150 : 400,
       zIndex: maxZ + 1,
       opacity: 1,
+      slideType: activeSlideType,
     }
     let newEl: TemplateElement
     if (type === 'text') {
       newEl = {
         ...base,
         type: 'text',
-        field: 'heading_text',
+        role: 'text',
         fontSize: 54,
         fontFamily: 'Inter',
         fontWeight: 700,
         color: '#000000',
         backgroundColor: '#ffffff',
+        bgMode: 'inline',
         padding: 8,
         placeholder: 'Nouveau texte',
-        slideTypes: ['title', 'content', 'cta'],
       } satisfies TextElement
     } else if (type === 'image') {
       newEl = {
@@ -139,25 +227,83 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         cornerRadius: 12,
       } satisfies RectElement
     }
-    setLayout((l) => ({ ...l, elements: [...l.elements, newEl] }))
+    pushLayout((l) => ({ ...l, elements: [...l.elements, newEl] }))
     setSelectedId(id)
   }
 
   function removeElement(id: string) {
-    setLayout((l) => ({ ...l, elements: l.elements.filter((el) => el.id !== id) }))
+    pushLayout((l) => ({ ...l, elements: l.elements.filter((el) => el.id !== id) }))
     if (selectedId === id) setSelectedId(null)
   }
 
   function reorder(id: string, direction: 'up' | 'down') {
-    const els = [...layout.elements].sort((a, b) => a.zIndex - b.zIndex)
-    const i = els.findIndex((el) => el.id === id)
-    if (i < 0) return
-    const j = direction === 'up' ? i + 1 : i - 1
-    if (j < 0 || j >= els.length) return
-    const tmpZ = els[i].zIndex
-    els[i].zIndex = els[j].zIndex
-    els[j].zIndex = tmpZ
-    setLayout((l) => ({ ...l, elements: [...els] }))
+    pushLayout((l) => {
+      const els = [...l.elements].sort((a, b) => a.zIndex - b.zIndex)
+      const i = els.findIndex((el) => el.id === id)
+      if (i < 0) return l
+      const j = direction === 'up' ? i + 1 : i - 1
+      if (j < 0 || j >= els.length) return l
+      const tmpZ = els[i].zIndex
+      els[i].zIndex = els[j].zIndex
+      els[j].zIndex = tmpZ
+      return { ...l, elements: [...els] }
+    })
+  }
+
+  function updatePadding(key: 'top' | 'right' | 'bottom' | 'left', value: number) {
+    pushLayout((l) => ({
+      ...l,
+      padding: { ...(l.padding || { top: 0, right: 0, bottom: 0, left: 0 }), [key]: value },
+    }))
+  }
+
+  function addSlideType() {
+    const base = 'slide'
+    let i = layout.slideTypes.length + 1
+    let candidate = `${base}${i}`
+    while (layout.slideTypes.includes(candidate)) {
+      i++
+      candidate = `${base}${i}`
+    }
+    pushLayout((l) => ({ ...l, slideTypes: [...l.slideTypes, candidate] }))
+    setActiveSlideType(candidate)
+  }
+
+  function deleteSlideType(st: string) {
+    if (layout.slideTypes.length <= 1) return
+    if (
+      !confirm(
+        `Supprimer le type "${st}" ? Tous les éléments rattachés à ce type seront supprimés.`
+      )
+    )
+      return
+    pushLayout((l) => ({
+      ...l,
+      slideTypes: l.slideTypes.filter((x) => x !== st),
+      elements: l.elements.filter((el) => el.slideType !== st),
+    }))
+  }
+
+  function commitRename() {
+    if (!renamingType) return
+    const newName = renameValue.trim()
+    if (!newName || newName === renamingType) {
+      setRenamingType(null)
+      return
+    }
+    if (layout.slideTypes.includes(newName)) {
+      alert('Ce nom existe déjà')
+      return
+    }
+    pushLayout((l) => ({
+      ...l,
+      slideTypes: l.slideTypes.map((x) => (x === renamingType ? newName : x)),
+      elements: l.elements.map((el) =>
+        el.slideType === renamingType ? { ...el, slideType: newName } : el
+      ),
+    }))
+    if (activeSlideType === renamingType) setActiveSlideType(newName)
+    setRenamingType(null)
   }
 
   async function handleSave() {
@@ -178,6 +324,8 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
     if (!error) {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+    } else {
+      alert('Erreur : ' + error.message)
     }
   }
 
@@ -188,6 +336,14 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
     await supabase.from('templates').delete().eq('id', initialTemplate.id)
     router.push('/templates')
   }
+
+  const visibleElementsForActiveType = useMemo(
+    () =>
+      [...layout.elements]
+        .filter((el) => el.slideType === activeSlideType)
+        .sort((a, b) => b.zIndex - a.zIndex),
+    [layout.elements, activeSlideType]
+  )
 
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col gap-4 -mx-6 px-6">
@@ -208,6 +364,22 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={undo}
+            disabled={!canUndo}
+            className="p-2.5 rounded-full bg-white shadow-soft hover:shadow-card disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Annuler (Cmd+Z)"
+          >
+            <Undo2 size={15} />
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            className="p-2.5 rounded-full bg-white shadow-soft hover:shadow-card disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Rétablir (Cmd+Shift+Z)"
+          >
+            <Redo2 size={15} />
+          </button>
+          <button
             onClick={handleDelete}
             disabled={deleting}
             className="p-2.5 rounded-full bg-white text-red-600 shadow-soft hover:shadow-card hover:bg-red-50"
@@ -226,7 +398,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-ink-900 text-white rounded-full text-sm font-medium hover:bg-ink-800 disabled:opacity-50"
           >
             <Save size={14} />
-            {saving ? 'Enregistrement...' : 'Enregistrer'}
+            {saving ? '...' : 'Enregistrer'}
           </button>
         </div>
       </div>
@@ -250,31 +422,29 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         </TabButton>
       </div>
 
-      {/* Content */}
       {tab === 'design' ? (
         <div className="flex-1 flex gap-4 min-h-0">
-          {/* Left: layers panel */}
-          <div className="w-60 bg-white rounded-xl2 shadow-soft p-3 flex flex-col gap-2 overflow-y-auto">
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-ink-600">
-                Éléments
-              </span>
-            </div>
-            <div className="flex gap-1">
-              <IconButton onClick={() => addElement('text')} title="Texte">
-                <Type size={14} />
-              </IconButton>
-              <IconButton onClick={() => addElement('image')} title="Image">
-                <ImageIcon size={14} />
-              </IconButton>
-              <IconButton onClick={() => addElement('rect')} title="Forme">
-                <Square size={14} />
-              </IconButton>
-            </div>
-            <div className="flex flex-col gap-1 mt-2">
-              {[...layout.elements]
-                .sort((a, b) => b.zIndex - a.zIndex)
-                .map((el) => (
+          {/* Left: layers panel + padding */}
+          <div className="w-60 bg-white rounded-xl2 shadow-soft p-3 flex flex-col gap-3 overflow-y-auto">
+            <div>
+              <div className="flex items-center justify-between px-2 py-1 mb-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-ink-600">
+                  Éléments
+                </span>
+              </div>
+              <div className="flex gap-1">
+                <IconButton onClick={() => addElement('text')} title="Texte">
+                  <Type size={14} />
+                </IconButton>
+                <IconButton onClick={() => addElement('image')} title="Image">
+                  <ImageIcon size={14} />
+                </IconButton>
+                <IconButton onClick={() => addElement('rect')} title="Forme">
+                  <Square size={14} />
+                </IconButton>
+              </div>
+              <div className="flex flex-col gap-1 mt-2">
+                {visibleElementsForActiveType.map((el) => (
                   <LayerItem
                     key={el.id}
                     element={el}
@@ -285,26 +455,77 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
                     onMoveDown={() => reorder(el.id, 'down')}
                   />
                 ))}
+                {visibleElementsForActiveType.length === 0 && (
+                  <div className="px-2 py-3 text-[10px] text-ink-600/50 text-center">
+                    Aucun élément sur ce type de slide
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Padding / safe area */}
+            <div className="border-t border-cream-100 pt-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-ink-600 px-2 mb-2">
+                Espace intérieur
+              </div>
+              <div className="grid grid-cols-2 gap-2 px-1">
+                <PaddingField
+                  label="Haut"
+                  value={layout.padding?.top || 0}
+                  onChange={(v) => updatePadding('top', v)}
+                />
+                <PaddingField
+                  label="Droite"
+                  value={layout.padding?.right || 0}
+                  onChange={(v) => updatePadding('right', v)}
+                />
+                <PaddingField
+                  label="Bas"
+                  value={layout.padding?.bottom || 0}
+                  onChange={(v) => updatePadding('bottom', v)}
+                />
+                <PaddingField
+                  label="Gauche"
+                  value={layout.padding?.left || 0}
+                  onChange={(v) => updatePadding('left', v)}
+                />
+              </div>
+              <p className="text-[10px] text-ink-600/60 px-2 mt-2">
+                Guides violets sur le canvas
+              </p>
             </div>
           </div>
 
           {/* Center: canvas */}
           <div className="flex-1 flex flex-col gap-3 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-ink-600">Aperçu slide :</span>
-              {SLIDE_TYPES.map((st) => (
-                <button
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-ink-600">Slide :</span>
+              {layout.slideTypes.map((st) => (
+                <SlideTypeTab
                   key={st}
-                  onClick={() => setActiveSlideType(st)}
-                  className={`px-3 py-1 text-xs rounded-full transition ${
-                    activeSlideType === st
-                      ? 'bg-ink-900 text-white'
-                      : 'bg-white text-ink-700 hover:bg-cream-100'
-                  }`}
-                >
-                  {st}
-                </button>
+                  type={st}
+                  active={activeSlideType === st}
+                  renaming={renamingType === st}
+                  renameValue={renameValue}
+                  canDelete={layout.slideTypes.length > 1}
+                  onSelect={() => setActiveSlideType(st)}
+                  onStartRename={() => {
+                    setRenamingType(st)
+                    setRenameValue(st)
+                  }}
+                  onChangeRename={(v) => setRenameValue(v)}
+                  onCommitRename={commitRename}
+                  onCancelRename={() => setRenamingType(null)}
+                  onDelete={() => deleteSlideType(st)}
+                />
               ))}
+              <button
+                onClick={addSlideType}
+                className="w-7 h-7 rounded-full bg-white hover:bg-cream-100 shadow-soft flex items-center justify-center"
+                title="Ajouter un type de slide"
+              >
+                <Plus size={14} />
+              </button>
             </div>
             <div
               ref={stageWrapperRef}
@@ -366,7 +587,6 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
           <h2 className="font-display text-xl font-semibold mb-1">Instructions image (Gemini)</h2>
           <p className="text-sm text-ink-600 mb-4">
             Style global appliqué à toutes les images générées (palette, composition, ambiance).
-            Combiné avec le <code>illustration_prompt</code> spécifique de chaque slide.
           </p>
           <textarea
             className="textarea min-h-[400px]"
@@ -381,6 +601,43 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
       )}
     </div>
   )
+}
+
+function normalizeLayout(raw: TemplateLayout): TemplateLayout {
+  const slideTypes = raw.slideTypes && raw.slideTypes.length > 0
+    ? raw.slideTypes
+    : ['title', 'content', 'cta']
+  const elements: TemplateElement[] = (raw.elements || []).map((el) => {
+    const anyEl = el as unknown as { slideType?: string; slideTypes?: string[]; field?: string; role?: TextRole }
+    const slideType =
+      anyEl.slideType ||
+      (anyEl.slideTypes && anyEl.slideTypes[0]) ||
+      slideTypes[0]
+    const next = { ...el, slideType } as TemplateElement
+    if (next.type === 'text') {
+      const t = next as TextElement
+      if (!t.role) {
+        // Infer role from the legacy `field` string
+        const field = anyEl.field || ''
+        t.role =
+          field.includes('heading') || field === 'title_text'
+            ? 'title'
+            : field.includes('keyword') || field.includes('cta')
+            ? 'cta'
+            : field.includes('sub')
+            ? 'subtitle'
+            : 'text'
+      }
+      if (!t.bgMode) t.bgMode = 'block'
+    }
+    return next
+  })
+  return {
+    ...raw,
+    slideTypes,
+    elements,
+    padding: raw.padding || { top: 0, right: 0, bottom: 0, left: 0 },
+  }
 }
 
 function TabButton({
@@ -424,6 +681,90 @@ function IconButton({
   )
 }
 
+function SlideTypeTab({
+  type,
+  active,
+  renaming,
+  renameValue,
+  canDelete,
+  onSelect,
+  onStartRename,
+  onChangeRename,
+  onCommitRename,
+  onCancelRename,
+  onDelete,
+}: {
+  type: string
+  active: boolean
+  renaming: boolean
+  renameValue: string
+  canDelete: boolean
+  onSelect: () => void
+  onStartRename: () => void
+  onChangeRename: (v: string) => void
+  onCommitRename: () => void
+  onCancelRename: () => void
+  onDelete: () => void
+}) {
+  if (renaming) {
+    return (
+      <div className="flex items-center gap-1 bg-white rounded-full pl-3 pr-1 py-1 shadow-soft">
+        <input
+          value={renameValue}
+          onChange={(e) => onChangeRename(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onCommitRename()
+            if (e.key === 'Escape') onCancelRename()
+          }}
+          autoFocus
+          className="text-xs bg-transparent outline-none w-20"
+        />
+        <button
+          onClick={onCommitRename}
+          className="p-1 rounded-full hover:bg-pastel-mint"
+          title="OK"
+        >
+          <Check size={12} />
+        </button>
+        <button
+          onClick={onCancelRename}
+          className="p-1 rounded-full hover:bg-cream-200"
+          title="Annuler"
+        >
+          <X size={12} />
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div
+      className={`flex items-center rounded-full text-xs transition overflow-hidden ${
+        active ? 'bg-ink-900 text-white' : 'bg-white text-ink-700 shadow-soft'
+      }`}
+    >
+      <button onClick={onSelect} className="pl-3 pr-1.5 py-1">
+        {type}
+      </button>
+      <button
+        onClick={onStartRename}
+        className={`px-1.5 py-1 ${active ? 'hover:bg-ink-800' : 'hover:bg-cream-100'}`}
+        title="Renommer"
+      >
+        <Pencil size={10} />
+      </button>
+      {canDelete && (
+        <button
+          onClick={onDelete}
+          className={`px-2 py-1 ${active ? 'hover:bg-red-600' : 'hover:bg-red-50 hover:text-red-600'}`}
+          title="Supprimer"
+        >
+          <X size={12} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 function LayerItem({
   element,
   selected,
@@ -442,7 +783,7 @@ function LayerItem({
   const Icon = element.type === 'text' ? Type : element.type === 'image' ? ImageIcon : Square
   const label =
     element.type === 'text'
-      ? (element as TextElement).field
+      ? roleLabel((element as TextElement).role)
       : element.type === 'image'
       ? 'Image'
       : 'Forme'
@@ -487,6 +828,21 @@ function LayerItem({
   )
 }
 
+function roleLabel(role: TextRole): string {
+  switch (role) {
+    case 'title':
+      return 'Titre'
+    case 'subtitle':
+      return 'Sous-titre'
+    case 'text':
+      return 'Texte'
+    case 'cta':
+      return 'CTA'
+    default:
+      return role
+  }
+}
+
 function PropertiesPanel({
   element,
   onChange,
@@ -500,35 +856,6 @@ function PropertiesPanel({
         {element.type}
       </div>
 
-      {/* Slide types filter */}
-      <div>
-        <label className="block text-[10px] text-ink-600 mb-1">Visible sur</label>
-        <div className="flex gap-1 flex-wrap">
-          {SLIDE_TYPES.map((st) => {
-            const active = !element.slideTypes || element.slideTypes.includes(st)
-            return (
-              <button
-                key={st}
-                onClick={() => {
-                  const current = element.slideTypes || [...SLIDE_TYPES]
-                  const next = active
-                    ? current.filter((x) => x !== st)
-                    : [...current, st]
-                  onChange({ slideTypes: next })
-                }}
-                className={`px-2 py-1 rounded-full text-[10px] ${
-                  active ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
-                }`}
-              >
-                {active ? <Eye size={10} className="inline mr-1" /> : <EyeOff size={10} className="inline mr-1" />}
-                {st}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Position + size */}
       <div className="grid grid-cols-2 gap-2">
         <NumberField label="X" value={element.x} onChange={(v) => onChange({ x: v })} />
         <NumberField label="Y" value={element.y} onChange={(v) => onChange({ y: v })} />
@@ -545,6 +872,29 @@ function PropertiesPanel({
       {element.type === 'rect' && (
         <RectProperties element={element as RectElement} onChange={onChange} />
       )}
+    </div>
+  )
+}
+
+function PaddingField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+}) {
+  return (
+    <div>
+      <label className="block text-[10px] text-ink-600 mb-0.5">{label}</label>
+      <input
+        type="number"
+        min={0}
+        className="input text-xs py-1.5"
+        value={value}
+        onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+      />
     </div>
   )
 }
@@ -605,11 +955,20 @@ function TextProperties({
 }) {
   return (
     <>
-      <TextField
-        label="Champ lié (ex: heading_text)"
-        value={element.field}
-        onChange={(v) => onChange({ field: v })}
-      />
+      <div>
+        <label className="block text-[10px] text-ink-600 mb-0.5">Rôle</label>
+        <select
+          className="input text-xs py-1.5"
+          value={element.role}
+          onChange={(e) => onChange({ role: e.target.value as TextRole })}
+        >
+          {ROLE_OPTIONS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </div>
       <TextField
         label="Placeholder"
         value={element.placeholder || ''}
@@ -653,6 +1012,25 @@ function TextProperties({
           value={element.backgroundColor || ''}
           onChange={(v) => onChange({ backgroundColor: v || undefined })}
         />
+      </div>
+      <div>
+        <label className="block text-[10px] text-ink-600 mb-0.5">Fond : mode</label>
+        <div className="flex gap-1">
+          {(['block', 'inline'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => onChange({ bgMode: m })}
+              className={`flex-1 py-1.5 rounded-lg text-[10px] ${
+                (element.bgMode || 'block') === m
+                  ? 'bg-ink-900 text-white'
+                  : 'bg-cream-100 text-ink-700'
+              }`}
+              title={m === 'block' ? 'Fond sur tout le bloc' : 'Fond ajusté au texte'}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
       <div>
         <label className="block text-[10px] text-ink-600 mb-0.5">Alignement</label>

@@ -6,19 +6,14 @@ import type {
   ImageElement,
   RectElement,
   CarouselSlide,
+  TextRole,
 } from '@/types/database'
 
-/**
- * Render a single slide off-screen using Konva and return a base64 JPEG data URL.
- * Runs in the browser. Inspired by the template builder's canvas but produces
- * a full-resolution (1080x1920) image ready to upload.
- */
 export async function renderSlideToDataUrl(
   layout: TemplateLayout,
   slide: CarouselSlide,
   backgroundUrl?: string
 ): Promise<string> {
-  // Create an off-screen container
   const container = document.createElement('div')
   container.style.position = 'absolute'
   container.style.left = '-99999px'
@@ -34,7 +29,6 @@ export async function renderSlideToDataUrl(
   const layer = new Konva.Layer({ listening: false })
   stage.add(layer)
 
-  // Background color
   if (layout.backgroundColor) {
     layer.add(
       new Konva.Rect({
@@ -48,31 +42,23 @@ export async function renderSlideToDataUrl(
     )
   }
 
-  // Filter elements for this slide type
+  // Only elements belonging to THIS slide type
   const visible = layout.elements
-    .filter(
-      (el) =>
-        !el.slideTypes ||
-        el.slideTypes.length === 0 ||
-        el.slideTypes.includes(slide.slide_type)
-    )
+    .filter((el) => el.slideType === slide.slide_type)
     .sort((a, b) => a.zIndex - b.zIndex)
 
-  // Add each element (awaiting images)
   for (const el of visible) {
     await addElement(layer, el, slide, backgroundUrl)
   }
 
   layer.draw()
 
-  // Export
   const dataUrl = stage.toDataURL({
     pixelRatio: 1,
     mimeType: 'image/jpeg',
     quality: 0.92,
   })
 
-  // Cleanup
   stage.destroy()
   document.body.removeChild(container)
 
@@ -88,35 +74,64 @@ async function addElement(
   const common = {
     x: el.x,
     y: el.y,
-    rotation: el.rotation || 0,
     opacity: el.opacity ?? 1,
     listening: false,
   }
 
   if (el.type === 'text') {
     const t = el as TextElement
-    const text =
-      slide.text_fields?.[t.field] ??
-      (t.placeholder || '')
+    const text = slide.text_fields?.[t.role] ?? t.placeholder ?? ''
     if (!text) return
 
+    const padding = t.padding || 0
+    const availableWidth = t.width - padding * 2
+    const bgMode = t.bgMode || 'block'
+
+    // Draw background FIRST
     if (t.backgroundColor) {
-      layer.add(
-        new Konva.Rect({
-          ...common,
-          width: t.width,
-          height: t.height,
-          fill: t.backgroundColor,
+      if (bgMode === 'block') {
+        layer.add(
+          new Konva.Rect({
+            ...common,
+            width: t.width,
+            height: t.height,
+            fill: t.backgroundColor,
+          })
+        )
+      } else {
+        // Inline: per-line rects tight around each wrapped line
+        const lines = wrapText(text, availableWidth, t.fontSize, t.fontFamily, t.fontWeight)
+        const lineHeight = (t.lineHeight || 1) * t.fontSize
+        lines.forEach((line, i) => {
+          if (!line.trim()) return
+          const w = measureTextWidth(line, t.fontSize, t.fontFamily, t.fontWeight)
+          let xOffset = padding
+          if (t.align === 'center') xOffset = padding + (availableWidth - w) / 2
+          else if (t.align === 'right') xOffset = padding + (availableWidth - w)
+          layer.add(
+            new Konva.Rect({
+              x: t.x + xOffset - 6,
+              y: t.y + padding + i * lineHeight - 2,
+              width: w + 12,
+              height: lineHeight + 4,
+              fill: t.backgroundColor,
+              cornerRadius: 4,
+              opacity: t.opacity ?? 1,
+              listening: false,
+            })
+          )
         })
-      )
+      }
     }
+
+    // Draw text
     layer.add(
       new Konva.Text({
         ...common,
-        x: t.x + (t.padding || 0),
-        y: t.y + (t.padding || 0),
-        width: t.width - (t.padding || 0) * 2,
-        height: t.height - (t.padding || 0) * 2,
+        x: t.x + padding,
+        y: t.y + padding,
+        width: availableWidth,
+        height: t.height - padding * 2,
         text,
         fontSize: t.fontSize,
         fontFamily: t.fontFamily,
@@ -173,10 +188,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-/**
- * Wait for all fonts referenced by the layout to load before rendering.
- * Without this, Konva renders with fallback fonts.
- */
 export async function ensureFontsLoaded(layout: TemplateLayout): Promise<void> {
   if (typeof document === 'undefined' || !document.fonts) return
   const fonts = new Set<string>()
@@ -191,6 +202,56 @@ export async function ensureFontsLoaded(layout: TemplateLayout): Promise<void> {
     await Promise.all([...fonts].map((f) => document.fonts.load(f)))
     await document.fonts.ready
   } catch {
-    // Ignore font loading errors — Konva falls back to system fonts
+    // ignore
   }
 }
+
+// ── Text measurement / wrap helpers (shared with the builder canvas) ──────
+
+let measureCtx: CanvasRenderingContext2D | null = null
+function measureTextWidth(
+  text: string,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: number | string | undefined
+): number {
+  if (typeof document === 'undefined') return 0
+  if (!measureCtx) {
+    const canvas = document.createElement('canvas')
+    measureCtx = canvas.getContext('2d')
+  }
+  if (!measureCtx) return 0
+  const isBold = String(fontWeight || 400).includes('7')
+  measureCtx.font = `${isBold ? 'bold ' : ''}${fontSize}px "${fontFamily}", sans-serif`
+  return measureCtx.measureText(text).width
+}
+
+function wrapText(
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: number | string | undefined
+): string[] {
+  const lines: string[] = []
+  const paragraphs = text.split('\n')
+  for (const para of paragraphs) {
+    const words = para.split(' ')
+    let current = ''
+    for (const word of words) {
+      const candidate = current ? current + ' ' + word : word
+      const w = measureTextWidth(candidate, fontSize, fontFamily, fontWeight)
+      if (w <= maxWidth || !current) {
+        current = candidate
+      } else {
+        lines.push(current)
+        current = word
+      }
+    }
+    lines.push(current)
+  }
+  return lines
+}
+
+// Re-export for consumers that might want it
+export type { TextRole }

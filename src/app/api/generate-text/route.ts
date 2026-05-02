@@ -8,9 +8,12 @@ type ProfileRow = {
   anthropic_api_key: string | null
 }
 
+import type { TemplateLayout, TextElement } from '@/types/database'
+
 type TemplateRow = {
   style_guide: string
   carousel_instructions: string
+  layout: TemplateLayout
 }
 
 export async function POST(request: Request) {
@@ -37,7 +40,7 @@ export async function POST(request: Request) {
 
   const { data: template } = await supabase
     .from('templates')
-    .select('style_guide, carousel_instructions')
+    .select('style_guide, carousel_instructions, layout')
     .eq('id', templateId)
     .eq('user_id', user.id)
     .single<TemplateRow>()
@@ -54,6 +57,18 @@ export async function POST(request: Request) {
     )
   }
 
+  // Build a per-slide-type role map from the template layout so Claude knows
+  // which text roles to fill for each slide type.
+  const rolesByType: Record<string, string[]> = {}
+  for (const st of template.layout.slideTypes || []) rolesByType[st] = []
+  for (const el of template.layout.elements || []) {
+    if (el.type === 'text') {
+      const role = (el as TextElement).role
+      if (!rolesByType[el.slideType]) rolesByType[el.slideType] = []
+      if (!rolesByType[el.slideType].includes(role)) rolesByType[el.slideType].push(role)
+    }
+  }
+
   try {
     const carousels = await generateCarousels({
       apiKey,
@@ -63,6 +78,7 @@ export async function POST(request: Request) {
       avatarInstructions: profile?.avatar_instructions,
       userPrompt,
       count,
+      rolesByType,
     })
     return NextResponse.json({ carousels })
   } catch (err) {

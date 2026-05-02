@@ -9,6 +9,8 @@ type GenerateArgs = {
   userPrompt?: string
   count?: number
   model?: string
+  // Map of slide type → list of text roles (e.g., { title: ['title'], content: ['title', 'text'], cta: ['title', 'text', 'cta'] })
+  rolesByType?: Record<string, string[]>
 }
 
 export async function generateCarousels({
@@ -20,6 +22,7 @@ export async function generateCarousels({
   userPrompt = '',
   count = 1,
   model = 'claude-haiku-4-5-20251001',
+  rolesByType,
 }: GenerateArgs) {
   const client = new Anthropic({ apiKey })
 
@@ -30,6 +33,18 @@ export async function generateCarousels({
     ? `PROFIL AVATAR :\n${avatarInstructions}\n\n`
     : ''
   const userBlock = userPrompt ? `DEMANDE UTILISATEUR :\n${userPrompt}\n\n` : ''
+
+  // Build the slide-types specification block from the template layout.
+  // Each slide type lists the text roles Claude must fill in for that type.
+  const slideTypeNames = rolesByType ? Object.keys(rolesByType) : ['title', 'content', 'cta']
+  const slideTypesSpec = rolesByType
+    ? Object.entries(rolesByType)
+        .map(([st, roles]) => {
+          const rolesList = roles.length > 0 ? roles.join(', ') : '(aucun champ texte)'
+          return `  - "${st}" → text_fields keys: ${rolesList}`
+        })
+        .join('\n')
+    : '  - "title", "content", "cta" → text_fields keys: title, text, cta'
 
   const prompt = `${masterBlock}${avatarBlock}${userBlock}Tu génères du contenu pour des carousels TikTok/Instagram.
 
@@ -46,6 +61,12 @@ ${styleGuide}
 --- CAROUSEL INSTRUCTIONS ---
 ${carouselInstructions}
 
+--- AVAILABLE SLIDE TYPES ---
+For each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.
+${slideTypesSpec}
+
+Allowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.
+
 Return ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.
 
 Each carousel object must have:
@@ -54,8 +75,8 @@ Each carousel object must have:
   "slides": [
     {
       "index": 1,
-      "slide_type": "title" | "content" | "cta",
-      "text_fields": { "heading_text": "...", "body_text": "...", "keyword_text": "..." },
+      "slide_type": "<one of the allowed values above>",
+      "text_fields": { "<role>": "<copy>", ... },
       "illustration_prompt": "<short vivid description for the background image>"
     },
     ...
@@ -63,6 +84,7 @@ Each carousel object must have:
 }
 
 IMPORTANT:
+- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.
 - The "illustration_prompt" is used for generating the background image (Gemini). It must NEVER appear in the final visible text.
 - All text in "text_fields" is what will be rendered on the slide.
 `
