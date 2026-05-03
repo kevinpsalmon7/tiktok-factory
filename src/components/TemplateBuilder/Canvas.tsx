@@ -50,7 +50,8 @@ export function BuilderCanvas({
 
   useEffect(() => {
     if (!transformerRef.current || !stageRef.current) return
-    if (selectedId) {
+    const selectedEl = layout.elements.find((e) => e.id === selectedId)
+    if (selectedId && selectedEl && !selectedEl.locked) {
       const node = stageRef.current.findOne('#' + selectedId)
       if (node) {
         transformerRef.current.nodes([node])
@@ -63,20 +64,20 @@ export function BuilderCanvas({
     }
   }, [selectedId, layout, activeSlideType])
 
-  const visibleElements = layout.elements
-    .filter((el) => el.slideType === activeSlideType)
-    .sort((a, b) => a.zIndex - b.zIndex)
+  // Array order IS the z-order (Photoshop-style): first = behind, last = front.
+  // We no longer sort by zIndex — the layout.elements array position is truth.
+  const visibleElements = layout.elements.filter(
+    (el) => el.slideType === activeSlideType
+  )
 
-  // Force Konva to honor z-order. react-konva does NOT reliably reorder
-  // internal children when the JSX array is resorted with identical keys,
-  // so we explicitly re-apply the order on the underlying Konva nodes.
+  // Safety net: force Konva's internal children order to match our array order.
+  // react-konva is not always reliable when reordering children with the same key.
   useEffect(() => {
     if (!stageRef.current) return
     for (const el of visibleElements) {
       const node = stageRef.current.findOne('#' + el.id)
       if (node) node.moveToTop()
     }
-    // Keep overlays (safe area + transformer) above the reordered elements.
     transformerRef.current?.moveToTop()
     stageRef.current.batchDraw()
   })
@@ -112,7 +113,7 @@ export function BuilderCanvas({
         />
         {visibleElements.map((el) => (
           <ElementNode
-            key={`${el.id}-z${el.zIndex}`}
+            key={el.id}
             element={el}
             isSelected={el.id === selectedId}
             onSelect={() => onSelect(el.id)}
@@ -369,17 +370,20 @@ function ElementNode({
   snapEnabled: boolean
   onSnapChange: (lines: SnapLine[]) => void
 }) {
+  const locked = !!element.locked
   const common = {
     id: element.id,
     x: element.x,
     y: element.y,
     opacity: element.opacity ?? 1,
-    draggable: true,
+    draggable: !locked,
+    listening: true,
     onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (locked) return
       e.cancelBubble = true
       onSelect()
     },
-    onTap: onSelect,
+    onTap: locked ? undefined : onSelect,
     onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
       if (!snapEnabled) return
       const node = e.target

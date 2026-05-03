@@ -146,6 +146,7 @@ export interface BaseElement {
   opacity?: number
   zIndex: number
   slideType: string // which slide type this element belongs to (exactly one)
+  locked?: boolean
 }
 
 export interface TextElement extends BaseElement {

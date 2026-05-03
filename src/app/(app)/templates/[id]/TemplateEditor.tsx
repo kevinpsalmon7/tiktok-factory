@@ -26,6 +26,8 @@ import {
   AlignStartVertical,
   AlignCenterVertical,
   AlignEndVertical,
+  Lock as LockIcon,
+  Unlock as UnlockIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { FontPicker } from '@/components/FontPicker'
@@ -245,17 +247,37 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
   }
 
   function reorder(id: string, direction: 'up' | 'down') {
+    // Photoshop-style: the layout.elements array order IS the z-order.
+    // First in array = behind, last in array = front.
+    // Panel is displayed reversed, so "up" in the panel = move toward array end = front.
     pushLayout((l) => {
-      const els = [...l.elements].sort((a, b) => a.zIndex - b.zIndex)
-      const i = els.findIndex((el) => el.id === id)
+      const i = l.elements.findIndex((el) => el.id === id)
       if (i < 0) return l
-      const j = direction === 'up' ? i + 1 : i - 1
-      if (j < 0 || j >= els.length) return l
-      const tmpZ = els[i].zIndex
-      els[i].zIndex = els[j].zIndex
-      els[j].zIndex = tmpZ
-      return { ...l, elements: [...els] }
+      const slideType = l.elements[i].slideType
+      const step = direction === 'up' ? 1 : -1
+      // Find the nearest neighbour of the same slideType in that direction.
+      let j = i + step
+      while (
+        j >= 0 &&
+        j < l.elements.length &&
+        l.elements[j].slideType !== slideType
+      ) {
+        j += step
+      }
+      if (j < 0 || j >= l.elements.length) return l
+      const newEls = [...l.elements]
+      ;[newEls[i], newEls[j]] = [newEls[j], newEls[i]]
+      return { ...l, elements: newEls }
     })
+  }
+
+  function toggleLock(id: string) {
+    pushLayout((l) => ({
+      ...l,
+      elements: l.elements.map((el) =>
+        el.id === id ? ({ ...el, locked: !el.locked } as TemplateElement) : el
+      ),
+    }))
   }
 
   function updatePadding(key: 'top' | 'right' | 'bottom' | 'left', value: number) {
@@ -345,11 +367,14 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
     router.push('/templates')
   }
 
+  // Panel shows the reverse of array order so top of panel = front on canvas
+  // (matches Photoshop). Array order is the source of truth for z-ordering.
   const visibleElementsForActiveType = useMemo(
     () =>
-      [...layout.elements]
+      layout.elements
         .filter((el) => el.slideType === activeSlideType)
-        .sort((a, b) => b.zIndex - a.zIndex),
+        .slice()
+        .reverse(),
     [layout.elements, activeSlideType]
   )
 
@@ -461,6 +486,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
                     onRemove={() => removeElement(el.id)}
                     onMoveUp={() => reorder(el.id, 'up')}
                     onMoveDown={() => reorder(el.id, 'down')}
+                    onToggleLock={() => toggleLock(el.id)}
                   />
                 ))}
                 {visibleElementsForActiveType.length === 0 && (
@@ -793,6 +819,7 @@ function LayerItem({
   onRemove,
   onMoveUp,
   onMoveDown,
+  onToggleLock,
 }: {
   element: TemplateElement
   selected: boolean
@@ -800,6 +827,7 @@ function LayerItem({
   onRemove: () => void
   onMoveUp: () => void
   onMoveDown: () => void
+  onToggleLock: () => void
 }) {
   const Icon = element.type === 'text' ? Type : element.type === 'image' ? ImageIcon : Square
   const label =
@@ -818,6 +846,20 @@ function LayerItem({
     >
       <Icon size={12} className="text-ink-700 shrink-0" />
       <span className="flex-1 truncate">{label}</span>
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleLock()
+        }}
+        className="p-0.5 hover:bg-white/50 rounded"
+        title={element.locked ? 'Déverrouiller' : 'Verrouiller'}
+      >
+        {element.locked ? (
+          <LockIcon size={12} className="text-ink-900" />
+        ) : (
+          <UnlockIcon size={12} className="text-ink-600/60" />
+        )}
+      </button>
       <button
         onClick={(e) => {
           e.stopPropagation()
