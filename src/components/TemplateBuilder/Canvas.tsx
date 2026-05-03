@@ -147,8 +147,77 @@ export function BuilderCanvas({
           ]}
           boundBoxFunc={(oldBox, newBox) => {
             if (newBox.width < 20 || newBox.height < 20) return oldBox
-            return newBox
+            if (!snapEnabled) return newBox
+
+            // boundBoxFunc coordinates are in the layer's local space = logical px
+            const T = SNAP_THRESHOLD
+            const CW = layout.width
+            const CH = layout.height
+            const p = layout.padding
+            const eps = 0.5
+
+            let { x, y, width, height } = newBox
+            const lines: SnapLine[] = []
+
+            const leftMoved = Math.abs(x - oldBox.x) > eps
+            const rightMoved = Math.abs((x + width) - (oldBox.x + oldBox.width)) > eps
+            const topMoved = Math.abs(y - oldBox.y) > eps
+            const bottomMoved = Math.abs((y + height) - (oldBox.y + oldBox.height)) > eps
+
+            // Left edge snap
+            if (leftMoved && !rightMoved) {
+              const targets = [0, ...(p?.left ? [p.left] : [])]
+              for (const t of targets) {
+                if (Math.abs(x - t) < T) {
+                  width = width + (x - t)
+                  x = t
+                  lines.push({ type: 'v', pos: t })
+                  break
+                }
+              }
+            }
+            // Right edge snap
+            if (rightMoved && !leftMoved) {
+              const right = x + width
+              const targets = [CW, ...(p?.right ? [CW - p.right] : [])]
+              for (const t of targets) {
+                if (Math.abs(right - t) < T) {
+                  width = t - x
+                  lines.push({ type: 'v', pos: t })
+                  break
+                }
+              }
+            }
+            // Top edge snap
+            if (topMoved && !bottomMoved) {
+              const targets = [0, ...(p?.top ? [p.top] : [])]
+              for (const t of targets) {
+                if (Math.abs(y - t) < T) {
+                  height = height + (y - t)
+                  y = t
+                  lines.push({ type: 'h', pos: t })
+                  break
+                }
+              }
+            }
+            // Bottom edge snap
+            if (bottomMoved && !topMoved) {
+              const bottom = y + height
+              const targets = [CH, ...(p?.bottom ? [CH - p.bottom] : [])]
+              for (const t of targets) {
+                if (Math.abs(bottom - t) < T) {
+                  height = t - y
+                  lines.push({ type: 'h', pos: t })
+                  break
+                }
+              }
+            }
+
+            setSnapLines(lines)
+            if (width < 20 || height < 20) return oldBox
+            return { ...newBox, x, y, width, height }
           }}
+          onTransformEnd={() => setSnapLines([])}
         />
       </Layer>
     </Stage>
@@ -607,21 +676,6 @@ function computeSnap(
   ]
   if (p?.top) ySnaps.push({ snap: p.top, guide: p.top })
   if (p?.bottom) ySnaps.push({ snap: CH - p.bottom - h, guide: CH - p.bottom })
-
-  // Also snap to other elements' edges + centers
-  for (const el of layout.elements) {
-    if (el.id === selfId) continue
-    xSnaps.push(
-      { snap: el.x, guide: el.x },
-      { snap: el.x + el.width - w, guide: el.x + el.width },
-      { snap: el.x + (el.width - w) / 2, guide: el.x + el.width / 2 }
-    )
-    ySnaps.push(
-      { snap: el.y, guide: el.y },
-      { snap: el.y + el.height - h, guide: el.y + el.height },
-      { snap: el.y + (el.height - h) / 2, guide: el.y + el.height / 2 }
-    )
-  }
 
   let snappedX = x
   let snappedY = y

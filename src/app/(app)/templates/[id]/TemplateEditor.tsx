@@ -901,24 +901,24 @@ function PropertiesPanel({
         <div className="text-[10px] text-ink-600 uppercase tracking-wide">Alignement</div>
         <div className="flex gap-1">
           <button className={btnBase} title="Aligner à gauche" onClick={() => alignH(0)}>
-            <AlignStartHorizontal size={12} />
+            <AlignStartVertical size={12} />
           </button>
           <button className={btnBase} title="Centrer horizontalement" onClick={() => alignH((CW - w) / 2)}>
-            <AlignCenterHorizontal size={12} />
+            <AlignCenterVertical size={12} />
           </button>
           <button className={btnBase} title="Aligner à droite" onClick={() => alignH(CW - w)}>
-            <AlignEndHorizontal size={12} />
+            <AlignEndVertical size={12} />
           </button>
         </div>
         <div className="flex gap-1">
           <button className={btnBase} title="Aligner en haut" onClick={() => alignV(0)}>
-            <AlignStartVertical size={12} />
+            <AlignStartHorizontal size={12} />
           </button>
           <button className={btnBase} title="Centrer verticalement" onClick={() => alignV((CH - h) / 2)}>
-            <AlignCenterVertical size={12} />
+            <AlignCenterHorizontal size={12} />
           </button>
           <button className={btnBase} title="Aligner en bas" onClick={() => alignV(CH - h)}>
-            <AlignEndVertical size={12} />
+            <AlignEndHorizontal size={12} />
           </button>
         </div>
       </div>
