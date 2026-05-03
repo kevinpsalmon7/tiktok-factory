@@ -19,6 +19,13 @@ import {
   Pencil,
   Check,
   X,
+  Magnet,
+  AlignStartHorizontal,
+  AlignCenterHorizontal,
+  AlignEndHorizontal,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { FontPicker } from '@/components/FontPicker'
@@ -88,6 +95,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [snapEnabled, setSnapEnabled] = useState(false)
   const [renamingType, setRenamingType] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -526,6 +534,17 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
               >
                 <Plus size={14} />
               </button>
+              <button
+                onClick={() => setSnapEnabled((v) => !v)}
+                className={`w-7 h-7 rounded-full shadow-soft flex items-center justify-center transition ${
+                  snapEnabled
+                    ? 'bg-ink-900 text-white'
+                    : 'bg-white text-ink-700 hover:bg-cream-100'
+                }`}
+                title={snapEnabled ? 'Désactiver l\'aimant' : 'Activer l\'aimant (snap)'}
+              >
+                <Magnet size={14} />
+              </button>
             </div>
             <div
               ref={stageWrapperRef}
@@ -539,6 +558,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
                 activeSlideType={activeSlideType}
                 stageWidth={stageSize.w}
                 stageHeight={stageSize.h}
+                snapEnabled={snapEnabled}
               />
             </div>
           </div>
@@ -548,6 +568,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
             {selectedElement ? (
               <PropertiesPanel
                 element={selectedElement}
+                layout={layout}
                 onChange={(patch) => updateElement(selectedElement.id, patch)}
               />
             ) : (
@@ -845,11 +866,23 @@ function roleLabel(role: TextRole): string {
 
 function PropertiesPanel({
   element,
+  layout,
   onChange,
 }: {
   element: TemplateElement
+  layout: TemplateLayout
   onChange: (patch: Partial<TemplateElement>) => void
 }) {
+  const CW = layout.width
+  const CH = layout.height
+  const w = element.width
+  const h = element.height
+
+  const alignH = (x: number) => onChange({ x: Math.round(x) })
+  const alignV = (y: number) => onChange({ y: Math.round(y) })
+
+  const btnBase = 'flex-1 flex items-center justify-center p-1.5 rounded-lg border border-ink-200 hover:bg-cream-100 transition'
+
   return (
     <div className="space-y-3 text-xs">
       <div className="text-[10px] uppercase tracking-wide text-ink-600 font-medium">
@@ -861,6 +894,33 @@ function PropertiesPanel({
         <NumberField label="Y" value={element.y} onChange={(v) => onChange({ y: v })} />
         <NumberField label="W" value={element.width} onChange={(v) => onChange({ width: v })} />
         <NumberField label="H" value={element.height} onChange={(v) => onChange({ height: v })} />
+      </div>
+
+      {/* Alignment buttons */}
+      <div className="space-y-1.5">
+        <div className="text-[10px] text-ink-600 uppercase tracking-wide">Alignement</div>
+        <div className="flex gap-1">
+          <button className={btnBase} title="Aligner à gauche" onClick={() => alignH(0)}>
+            <AlignStartHorizontal size={12} />
+          </button>
+          <button className={btnBase} title="Centrer horizontalement" onClick={() => alignH((CW - w) / 2)}>
+            <AlignCenterHorizontal size={12} />
+          </button>
+          <button className={btnBase} title="Aligner à droite" onClick={() => alignH(CW - w)}>
+            <AlignEndHorizontal size={12} />
+          </button>
+        </div>
+        <div className="flex gap-1">
+          <button className={btnBase} title="Aligner en haut" onClick={() => alignV(0)}>
+            <AlignStartVertical size={12} />
+          </button>
+          <button className={btnBase} title="Centrer verticalement" onClick={() => alignV((CH - h) / 2)}>
+            <AlignCenterVertical size={12} />
+          </button>
+          <button className={btnBase} title="Aligner en bas" onClick={() => alignV(CH - h)}>
+            <AlignEndVertical size={12} />
+          </button>
+        </div>
       </div>
 
       {element.type === 'text' && (

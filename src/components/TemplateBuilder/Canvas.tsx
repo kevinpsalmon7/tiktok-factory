@@ -2,7 +2,7 @@
 
 import { Stage, Layer, Rect, Text, Image as KonvaImage, Transformer, Group, Line } from 'react-konva'
 import type Konva from 'konva'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useImage from 'use-image'
 import type {
   TemplateLayout,
@@ -12,6 +12,8 @@ import type {
   RectElement,
 } from '@/types/database'
 
+type SnapLine = { type: 'v' | 'h'; pos: number }
+
 type Props = {
   layout: TemplateLayout
   selectedId: string | null
@@ -20,6 +22,7 @@ type Props = {
   activeSlideType: string
   stageWidth: number
   stageHeight: number
+  snapEnabled?: boolean
 }
 
 const RULER_SIZE = 22
@@ -32,7 +35,9 @@ export function BuilderCanvas({
   activeSlideType,
   stageWidth,
   stageHeight,
+  snapEnabled = false,
 }: Props) {
+  const [snapLines, setSnapLines] = useState<SnapLine[]>([])
   // The stage displays rulers around the actual canvas. Compute the scale so
   // the canvas fits inside stageWidth - RULER_SIZE (the area available to the
   // design surface itself).
@@ -98,6 +103,25 @@ export function BuilderCanvas({
             isSelected={el.id === selectedId}
             onSelect={() => onSelect(el.id)}
             onUpdate={(patch) => onUpdate(el.id, patch)}
+            layout={layout}
+            snapEnabled={snapEnabled}
+            onSnapChange={setSnapLines}
+          />
+        ))}
+
+        {/* Snap guide lines */}
+        {snapLines.map((line, i) => (
+          <Line
+            key={i}
+            points={
+              line.type === 'v'
+                ? [line.pos, 0, line.pos, layout.height]
+                : [0, line.pos, layout.width, line.pos]
+            }
+            stroke="#ff3366"
+            strokeWidth={1.5 / scale}
+            dash={[8 / scale, 4 / scale]}
+            listening={false}
           />
         ))}
 
@@ -250,11 +274,17 @@ function ElementNode({
   isSelected,
   onSelect,
   onUpdate,
+  layout,
+  snapEnabled,
+  onSnapChange,
 }: {
   element: TemplateElement
   isSelected: boolean
   onSelect: () => void
   onUpdate: (patch: Partial<TemplateElement>) => void
+  layout: TemplateLayout
+  snapEnabled: boolean
+  onSnapChange: (lines: SnapLine[]) => void
 }) {
   const common = {
     id: element.id,
@@ -267,7 +297,20 @@ function ElementNode({
       onSelect()
     },
     onTap: onSelect,
+    onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
+      if (!snapEnabled) return
+      const node = e.target
+      const result = computeSnap(
+        node.x(), node.y(),
+        element.width, element.height,
+        layout, element.id
+      )
+      node.x(result.x)
+      node.y(result.y)
+      onSnapChange(result.lines)
+    },
     onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
+      onSnapChange([])
       onUpdate({ x: Math.round(e.target.x()), y: Math.round(e.target.y()) })
     },
     onTransformEnd: (e: Konva.KonvaEventObject<Event>) => {
@@ -286,8 +329,8 @@ function ElementNode({
   }
 
   if (element.type === 'text') return <TextNode element={element as TextElement} common={common} isSelected={isSelected} />
-  if (element.type === 'image') return <ImageNode element={element as ImageElement} common={common} />
-  if (element.type === 'rect') return <RectNode element={element as RectElement} common={common} />
+  if (element.type === 'image') return <ImageNode element={element as ImageElement} common={common} isSelected={isSelected} />
+  if (element.type === 'rect') return <RectNode element={element as RectElement} common={common} isSelected={isSelected} />
   return null
 }
 
@@ -470,22 +513,26 @@ function roleLabel(role: string): string {
 function ImageNode({
   element,
   common,
+  isSelected,
 }: {
   element: ImageElement
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   common: any
+  isSelected: boolean
 }) {
   const [img] = useImage(element.assetUrl || '')
   if (element.source === 'generated' || !element.assetUrl) {
     return (
       <Group {...common} width={element.width} height={element.height}>
-        {/* Filled rect without listening={false} so the Group captures drag */}
         <Rect
           x={0}
           y={0}
           width={element.width}
           height={element.height}
           fill="#e8e3d4"
+          stroke={isSelected ? undefined : '#cccccc'}
+          strokeWidth={isSelected ? 0 : 1}
+          dash={isSelected ? undefined : [4, 4]}
         />
         <Text
           x={0}
@@ -507,10 +554,12 @@ function ImageNode({
 function RectNode({
   element,
   common,
+  isSelected,
 }: {
   element: RectElement
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   common: any
+  isSelected: boolean
 }) {
   return (
     <Rect
@@ -518,9 +567,89 @@ function RectNode({
       width={element.width}
       height={element.height}
       fill={element.fill}
-      stroke={element.stroke}
-      strokeWidth={element.strokeWidth || 0}
+      stroke={isSelected ? (element.stroke || undefined) : (element.stroke || '#cccccc')}
+      strokeWidth={isSelected ? (element.strokeWidth || 0) : Math.max(element.strokeWidth || 0, 1)}
+      dash={isSelected ? undefined : [4, 4]}
       cornerRadius={element.cornerRadius || 0}
     />
   )
+}
+
+// ── Snap computation ─────────────────────────────────────────────────────────
+
+const SNAP_THRESHOLD = 14
+
+function computeSnap(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  layout: TemplateLayout,
+  selfId: string
+): { x: number; y: number; lines: SnapLine[] } {
+  const CW = layout.width
+  const CH = layout.height
+  const p = layout.padding
+
+  // snap: position to set element.x/y to. guide: where to draw the guideline.
+  const xSnaps: { snap: number; guide: number }[] = [
+    { snap: 0, guide: 0 },
+    { snap: (CW - w) / 2, guide: CW / 2 },
+    { snap: CW - w, guide: CW },
+  ]
+  if (p?.left) xSnaps.push({ snap: p.left, guide: p.left })
+  if (p?.right) xSnaps.push({ snap: CW - p.right - w, guide: CW - p.right })
+
+  const ySnaps: { snap: number; guide: number }[] = [
+    { snap: 0, guide: 0 },
+    { snap: (CH - h) / 2, guide: CH / 2 },
+    { snap: CH - h, guide: CH },
+  ]
+  if (p?.top) ySnaps.push({ snap: p.top, guide: p.top })
+  if (p?.bottom) ySnaps.push({ snap: CH - p.bottom - h, guide: CH - p.bottom })
+
+  // Also snap to other elements' edges + centers
+  for (const el of layout.elements) {
+    if (el.id === selfId) continue
+    xSnaps.push(
+      { snap: el.x, guide: el.x },
+      { snap: el.x + el.width - w, guide: el.x + el.width },
+      { snap: el.x + (el.width - w) / 2, guide: el.x + el.width / 2 }
+    )
+    ySnaps.push(
+      { snap: el.y, guide: el.y },
+      { snap: el.y + el.height - h, guide: el.y + el.height },
+      { snap: el.y + (el.height - h) / 2, guide: el.y + el.height / 2 }
+    )
+  }
+
+  let snappedX = x
+  let snappedY = y
+  const lines: SnapLine[] = []
+
+  let minXDist = SNAP_THRESHOLD
+  let bestXGuide: number | null = null
+  for (const { snap, guide } of xSnaps) {
+    const dist = Math.abs(x - snap)
+    if (dist < minXDist) {
+      minXDist = dist
+      snappedX = snap
+      bestXGuide = guide
+    }
+  }
+  if (bestXGuide !== null) lines.push({ type: 'v', pos: bestXGuide })
+
+  let minYDist = SNAP_THRESHOLD
+  let bestYGuide: number | null = null
+  for (const { snap, guide } of ySnaps) {
+    const dist = Math.abs(y - snap)
+    if (dist < minYDist) {
+      minYDist = dist
+      snappedY = snap
+      bestYGuide = guide
+    }
+  }
+  if (bestYGuide !== null) lines.push({ type: 'h', pos: bestYGuide })
+
+  return { x: snappedX, y: snappedY, lines }
 }
