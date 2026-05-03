@@ -306,19 +306,20 @@ function TextNode({
 
   return (
     <Group {...common} width={element.width} height={element.height}>
-      {/* Selection outline when nothing else signals this element (dashed when not selected for quick visual) */}
-      {!isSelected && (
-        <Rect
-          x={0}
-          y={0}
-          width={element.width}
-          height={element.height}
-          stroke="#cccccc"
-          strokeWidth={1}
-          dash={[4, 4]}
-          listening={false}
-        />
-      )}
+      {/* Hitbox: transparent-filled Rect covering the full element so the
+          Group picks up mouse events even when the real bg / text are
+          listening={false}. Also doubles as the visual outline when not selected. */}
+      <Rect
+        x={0}
+        y={0}
+        width={element.width}
+        height={element.height}
+        fill="rgba(0,0,0,0.001)"
+        stroke={isSelected ? undefined : '#cccccc'}
+        strokeWidth={isSelected ? 0 : 1}
+        dash={isSelected ? undefined : [4, 4]}
+      />
+      
 
       {/* Block background — fills whole rect */}
       {element.backgroundColor && bgMode === 'block' && (
@@ -478,13 +479,13 @@ function ImageNode({
   if (element.source === 'generated' || !element.assetUrl) {
     return (
       <Group {...common} width={element.width} height={element.height}>
+        {/* Filled rect without listening={false} so the Group captures drag */}
         <Rect
           x={0}
           y={0}
           width={element.width}
           height={element.height}
           fill="#e8e3d4"
-          listening={false}
         />
         <Text
           x={0}
