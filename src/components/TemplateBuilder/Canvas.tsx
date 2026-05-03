@@ -67,6 +67,20 @@ export function BuilderCanvas({
     .filter((el) => el.slideType === activeSlideType)
     .sort((a, b) => a.zIndex - b.zIndex)
 
+  // Force Konva to honor z-order. react-konva does NOT reliably reorder
+  // internal children when the JSX array is resorted with identical keys,
+  // so we explicitly re-apply the order on the underlying Konva nodes.
+  useEffect(() => {
+    if (!stageRef.current) return
+    for (const el of visibleElements) {
+      const node = stageRef.current.findOne('#' + el.id)
+      if (node) node.moveToTop()
+    }
+    // Keep overlays (safe area + transformer) above the reordered elements.
+    transformerRef.current?.moveToTop()
+    stageRef.current.batchDraw()
+  })
+
   return (
     <Stage
       ref={stageRef}
