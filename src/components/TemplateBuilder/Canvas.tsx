@@ -112,7 +112,7 @@ export function BuilderCanvas({
         />
         {visibleElements.map((el) => (
           <ElementNode
-            key={el.id}
+            key={`${el.id}-z${el.zIndex}`}
             element={el}
             isSelected={el.id === selectedId}
             onSelect={() => onSelect(el.id)}
