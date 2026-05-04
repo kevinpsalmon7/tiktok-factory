@@ -20,6 +20,8 @@ import {
   Check,
   X,
   Magnet,
+  Eye,
+  EyeOff,
   AlignStartHorizontal,
   AlignCenterHorizontal,
   AlignEndHorizontal,
@@ -98,6 +100,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
   const [saved, setSaved] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [snapEnabled, setSnapEnabled] = useState(false)
+  const [showGuides, setShowGuides] = useState(true)
   const [renamingType, setRenamingType] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -571,6 +574,17 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
               >
                 <Magnet size={14} />
               </button>
+              <button
+                onClick={() => setShowGuides((v) => !v)}
+                className={`w-7 h-7 rounded-full shadow-soft flex items-center justify-center transition ${
+                  showGuides
+                    ? 'bg-ink-900 text-white'
+                    : 'bg-white text-ink-700 hover:bg-cream-100'
+                }`}
+                title={showGuides ? 'Masquer les guides' : 'Afficher les guides'}
+              >
+                {showGuides ? <Eye size={14} /> : <EyeOff size={14} />}
+              </button>
             </div>
             <div
               ref={stageWrapperRef}
@@ -585,6 +599,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
                 stageWidth={stageSize.w}
                 stageHeight={stageSize.h}
                 snapEnabled={snapEnabled}
+                showGuides={showGuides}
               />
             </div>
           </div>

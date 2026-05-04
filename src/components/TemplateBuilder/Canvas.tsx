@@ -23,6 +23,7 @@ type Props = {
   stageWidth: number
   stageHeight: number
   snapEnabled?: boolean
+  showGuides?: boolean
 }
 
 const RULER_SIZE = 22
@@ -36,6 +37,7 @@ export function BuilderCanvas({
   stageWidth,
   stageHeight,
   snapEnabled = false,
+  showGuides = true,
 }: Props) {
   const [snapLines, setSnapLines] = useState<SnapLine[]>([])
   // The stage displays rulers around the actual canvas. Compute the scale so
@@ -140,9 +142,6 @@ export function BuilderCanvas({
           />
         ))}
 
-        {/* Safe-area guides — rendered ABOVE elements so they're always visible */}
-        <SafeAreaGuides layout={layout} />
-
         <Transformer
           ref={transformerRef}
           rotateEnabled={false}
@@ -235,6 +234,14 @@ export function BuilderCanvas({
           onTransformEnd={() => setSnapLines([])}
         />
       </Layer>
+
+      {/* Overlay layer — safe-area guides always on top of everything,
+          regardless of element z-order or background images. */}
+      {showGuides && (
+        <Layer x={RULER_SIZE} y={RULER_SIZE} scaleX={scale} scaleY={scale} listening={false}>
+          <SafeAreaGuides layout={layout} />
+        </Layer>
+      )}
     </Stage>
   )
 }
