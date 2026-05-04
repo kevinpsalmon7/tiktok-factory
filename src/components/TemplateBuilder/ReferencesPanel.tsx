@@ -85,6 +85,9 @@ export function ReferencesPanel({ templateId }: { templateId: string }) {
   }, [loadItems])
 
   async function handleFiles(files: FileList | File[]) {
+    // Capture immediately — before any await — so that clearing e.target.value
+    // in the onChange handler doesn't empty the live FileList reference.
+    const fileArr = Array.from(files)
     setError(null)
     setUploading(true)
 
@@ -94,8 +97,6 @@ export function ReferencesPanel({ templateId }: { templateId: string }) {
       setUploading(false)
       return
     }
-
-    const fileArr = Array.from(files)
     let nextPosition = items.length
     let anyUploaded = false
 
