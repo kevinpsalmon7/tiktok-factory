@@ -634,7 +634,6 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
               subtitle="Consignes de structure, nombre de slides, contraintes de génération."
               value={carouselInstructions}
               onChange={setCarouselInstructions}
-              mono
             />
             <InstructionSection
               title="Avatar"
@@ -1368,13 +1367,11 @@ function InstructionSection({
   subtitle,
   value,
   onChange,
-  mono = false,
 }: {
   title: string
   subtitle: string
   value: string
   onChange: (v: string) => void
-  mono?: boolean
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -1428,7 +1425,7 @@ function InstructionSection({
         />
       </div>
       <textarea
-        className={`textarea min-h-[160px] ${mono ? 'font-mono text-xs' : 'text-sm'}`}
+        className="textarea min-h-[160px] font-mono text-xs"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Vide — écrire ou importer un fichier PDF, .txt ou .md…"
