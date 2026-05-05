@@ -63,9 +63,16 @@ export async function POST(request: Request) {
   for (const st of template.layout.slideTypes || []) rolesByType[st] = []
   for (const el of template.layout.elements || []) {
     if (el.type === 'text') {
-      const role = (el as TextElement).role
+      const textEl = el as TextElement
       if (!rolesByType[el.slideType]) rolesByType[el.slideType] = []
-      if (!rolesByType[el.slideType].includes(role)) rolesByType[el.slideType].push(role)
+      // Collect per-paragraph roles (new model) or fall back to element-level role
+      const roles: string[] =
+        textEl.paragraphs && textEl.paragraphs.length > 0
+          ? textEl.paragraphs.map((p) => p.role ?? textEl.role)
+          : [textEl.role]
+      for (const role of roles) {
+        if (!rolesByType[el.slideType].includes(role)) rolesByType[el.slideType].push(role)
+      }
     }
   }
 

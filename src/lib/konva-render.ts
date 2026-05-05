@@ -80,68 +80,92 @@ async function addElement(
 
   if (el.type === 'text') {
     const t = el as TextElement
-    const text = slide.text_fields?.[t.role] ?? t.placeholder ?? ''
-    if (!text) return
-
-    const padding = t.padding || 0
-    const availableWidth = t.width - padding * 2
     const bgMode = t.bgMode || 'block'
+    const padding = t.padding || 0
+    const PARA_GAP = 6
 
-    // Draw background FIRST
-    if (t.backgroundColor) {
-      if (bgMode === 'block') {
-        layer.add(
-          new Konva.Rect({
-            ...common,
-            width: t.width,
-            height: t.height,
-            fill: t.backgroundColor,
-          })
-        )
-      } else {
-        // Inline: per-line rects tight around each wrapped line
-        const lines = wrapText(text, availableWidth, t.fontSize, t.fontFamily, t.fontWeight)
-        const lineHeight = (t.lineHeight || 1) * t.fontSize
-        lines.forEach((line, i) => {
-          if (!line.trim()) return
-          const w = measureTextWidth(line, t.fontSize, t.fontFamily, t.fontWeight)
-          let xOffset = padding
-          if (t.align === 'center') xOffset = padding + (availableWidth - w) / 2
-          else if (t.align === 'right') xOffset = padding + (availableWidth - w)
-          layer.add(
-            new Konva.Rect({
-              x: t.x + xOffset - 6,
-              y: t.y + padding + i * lineHeight - 2,
-              width: w + 12,
-              height: lineHeight + 4,
-              fill: t.backgroundColor,
-              cornerRadius: 4,
-              opacity: t.opacity ?? 1,
-              listening: false,
-            })
-          )
-        })
-      }
+    // Resolve paragraphs — new model uses per-paragraph roles; legacy uses element-level role
+    const rawParas = t.paragraphs && t.paragraphs.length > 0
+      ? t.paragraphs
+      : [{ role: t.role as TextRole }]
+
+    const paras = rawParas.map((p) => ({
+      text: slide.text_fields?.[p.role ?? t.role] ?? '',
+      fontFamily: p.fontFamily ?? t.fontFamily,
+      fontSize: p.fontSize ?? t.fontSize,
+      fontWeight: p.fontWeight ?? t.fontWeight,
+      color: p.color ?? t.color,
+      align: (p.align ?? t.align ?? 'left') as 'left' | 'center' | 'right',
+      lineHeight: p.lineHeight ?? t.lineHeight ?? 1.2,
+    }))
+
+    // Skip element entirely if all paragraphs are empty
+    if (paras.every((p) => !p.text)) return
+
+    const textX = t.x + (bgMode === 'block' ? padding : 0)
+    const textW = bgMode === 'block' ? Math.max(10, t.width - padding * 2) : t.width
+
+    // Block background — one rect for the whole element
+    if (t.backgroundColor && bgMode === 'block') {
+      layer.add(new Konva.Rect({
+        ...common,
+        width: t.width,
+        height: t.height,
+        fill: t.backgroundColor,
+      }))
     }
 
-    // Draw text
-    layer.add(
-      new Konva.Text({
-        ...common,
-        x: t.x + padding,
-        y: t.y + padding,
-        width: availableWidth,
-        height: t.height - padding * 2,
-        text,
-        fontSize: t.fontSize,
-        fontFamily: t.fontFamily,
-        fontStyle: String(t.fontWeight || 400).includes('7') ? 'bold' : 'normal',
-        fill: t.color,
-        align: t.align || 'left',
-        lineHeight: t.lineHeight || 1,
+    let curY = t.y + (bgMode === 'block' ? padding : 0)
+
+    for (let pi = 0; pi < paras.length; pi++) {
+      const p = paras[pi]
+      if (!p.text) continue
+
+      const lines = wrapText(p.text, textW, p.fontSize, p.fontFamily, p.fontWeight)
+      const lh = p.lineHeight * p.fontSize
+      const isBold = String(p.fontWeight || 400).includes('7')
+
+      // Inline background — one rect per wrapped line, padding = visual margin
+      if (t.backgroundColor && bgMode === 'inline') {
+        lines.forEach((line, li) => {
+          if (!line.trim()) return
+          const w = measureTextWidth(line, p.fontSize, p.fontFamily, p.fontWeight)
+          const lx = p.align === 'center' ? (textW - w) / 2
+                   : p.align === 'right'  ? textW - w : 0
+          const bx = Math.max(0, lx - padding)
+          const bw = Math.min(t.width - bx, w + padding * 2)
+          const bgPadV = Math.max(2, padding / 2)
+          layer.add(new Konva.Rect({
+            x: t.x + bx,
+            y: curY + li * lh - bgPadV,
+            width: bw,
+            height: lh + bgPadV * 2,
+            fill: t.backgroundColor,
+            cornerRadius: 4,
+            opacity: t.opacity ?? 1,
+            listening: false,
+          }))
+        })
+      }
+
+      layer.add(new Konva.Text({
+        x: textX,
+        y: curY,
+        width: textW,
+        text: p.text,
+        fontSize: p.fontSize,
+        fontFamily: p.fontFamily,
+        fontStyle: isBold ? 'bold' : 'normal',
+        fill: p.color,
+        align: p.align,
+        lineHeight: p.lineHeight,
         verticalAlign: 'top',
-      })
-    )
+        opacity: t.opacity ?? 1,
+        listening: false,
+      }))
+
+      curY += lines.length * lh + (pi < paras.length - 1 ? PARA_GAP : 0)
+    }
     return
   }
 
@@ -194,8 +218,15 @@ export async function ensureFontsLoaded(layout: TemplateLayout): Promise<void> {
   for (const el of layout.elements) {
     if (el.type === 'text') {
       const t = el as TextElement
-      fonts.add(`${t.fontSize}px ${t.fontFamily}`)
-      fonts.add(`bold ${t.fontSize}px ${t.fontFamily}`)
+      fonts.add(`${t.fontSize}px "${t.fontFamily}"`)
+      fonts.add(`bold ${t.fontSize}px "${t.fontFamily}"`)
+      // Also preload per-paragraph fonts
+      for (const p of t.paragraphs ?? []) {
+        const ff = p.fontFamily ?? t.fontFamily
+        const fs = p.fontSize ?? t.fontSize
+        fonts.add(`${fs}px "${ff}"`)
+        fonts.add(`bold ${fs}px "${ff}"`)
+      }
     }
   }
   try {
