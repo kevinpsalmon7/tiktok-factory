@@ -576,8 +576,6 @@ function roleLabel(role: string): string {
       return 'Sous-titre'
     case 'text':
       return 'Texte'
-    case 'cta':
-      return 'CTA'
     default:
       return role
   }

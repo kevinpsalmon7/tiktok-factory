@@ -65,8 +65,8 @@ type Tab = 'design' | 'style' | 'prompt' | 'gemini' | 'references'
 const HISTORY_LIMIT = 10
 
 function roleDefaults(role: TextRole, baseSize: number): Pick<TextParagraph, 'fontSize' | 'fontWeight'> {
-  const sz: Record<TextRole, number> = { title: baseSize, subtitle: Math.round(baseSize * 0.65), text: Math.round(baseSize * 0.45), cta: Math.round(baseSize * 0.55) }
-  const fw: Record<TextRole, number> = { title: 700, subtitle: 600, text: 400, cta: 700 }
+  const sz: Record<TextRole, number> = { title: baseSize, subtitle: Math.round(baseSize * 0.65), text: Math.round(baseSize * 0.45) }
+  const fw: Record<TextRole, number> = { title: 700, subtitle: 600, text: 400 }
   return { fontSize: sz[role], fontWeight: fw[role] }
 }
 
@@ -74,7 +74,6 @@ const ROLE_OPTIONS: { value: TextRole; label: string }[] = [
   { value: 'title', label: 'Titre' },
   { value: 'subtitle', label: 'Sous-titre' },
   { value: 'text', label: 'Texte' },
-  { value: 'cta', label: 'CTA' },
 ]
 
 export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTemplate }) {
@@ -688,8 +687,6 @@ function normalizeLayout(raw: TemplateLayout): TemplateLayout {
         t.role =
           field.includes('heading') || field === 'title_text'
             ? 'title'
-            : field.includes('keyword') || field.includes('cta')
-            ? 'cta'
             : field.includes('sub')
             ? 'subtitle'
             : 'text'
@@ -918,8 +915,6 @@ function roleLabel(role: TextRole): string {
       return 'Sous-titre'
     case 'text':
       return 'Texte'
-    case 'cta':
-      return 'CTA'
     default:
       return role
   }

@@ -134,7 +134,7 @@ export type TemplateElementType = 'text' | 'image' | 'rect'
 
 // Semantic role: what kind of content this text block holds.
 // The generator (Claude) fills each role with appropriate copy.
-export type TextRole = 'title' | 'subtitle' | 'text' | 'cta'
+export type TextRole = 'title' | 'subtitle' | 'text'
 
 export type TextParagraph = {
   role?: TextRole

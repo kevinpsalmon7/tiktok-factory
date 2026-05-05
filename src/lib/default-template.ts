@@ -189,7 +189,7 @@ Return a JSON array of carousels. No markdown, no explanation.`,
       {
         id: 'cta_keyword',
         type: 'text',
-        role: 'cta',
+        role: 'text',
         x: 80,
         y: 1560,
         width: 920,
