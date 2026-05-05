@@ -41,6 +41,7 @@ import type {
   ImageElement,
   RectElement,
   TextRole,
+  TextParagraph,
 } from '@/types/database'
 
 const BuilderCanvas = dynamic(
@@ -223,7 +224,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         backgroundColor: '#ffffff',
         bgMode: 'inline',
         padding: 8,
-        placeholder: 'Nouveau texte',
+        paragraphs: [{ text: 'Nouveau texte' }],
       } satisfies TextElement
     } else if (type === 'image') {
       newEl = {
@@ -1067,8 +1068,44 @@ function TextProperties({
   element: TextElement
   onChange: (patch: Partial<TextElement>) => void
 }) {
+  const [selIdx, setSelIdx] = useState(0)
+
+  useEffect(() => { setSelIdx(0) }, [element.id])
+
+  const paragraphs: TextParagraph[] =
+    element.paragraphs && element.paragraphs.length > 0
+      ? element.paragraphs
+      : [{ text: element.placeholder || '' }]
+
+  const clampedIdx = Math.min(selIdx, paragraphs.length - 1)
+  const sel = paragraphs[clampedIdx]
+
+  const updatePara = (patch: Partial<TextParagraph>) => {
+    const next = paragraphs.map((p, i) => (i === clampedIdx ? { ...p, ...patch } : p))
+    onChange({ paragraphs: next })
+  }
+
+  const addPara = () => {
+    const next = [...paragraphs, { text: '' }]
+    onChange({ paragraphs: next })
+    setSelIdx(next.length - 1)
+  }
+
+  const removePara = (i: number) => {
+    if (paragraphs.length <= 1) return
+    const next = paragraphs.filter((_, idx) => idx !== i)
+    onChange({ paragraphs: next })
+    setSelIdx(Math.min(clampedIdx, next.length - 1))
+  }
+
+  const effFontSize = sel.fontSize ?? element.fontSize
+  const effWeight = String(sel.fontWeight ?? element.fontWeight ?? 400)
+  const effColor = sel.color ?? element.color
+  const effAlign = sel.align ?? element.align ?? 'left'
+
   return (
     <>
+      {/* ── Paramètres globaux du bloc ──────────────────────── */}
       <div>
         <label className="block text-[10px] text-ink-600 mb-0.5">Rôle</label>
         <select
@@ -1077,67 +1114,35 @@ function TextProperties({
           onChange={(e) => onChange({ role: e.target.value as TextRole })}
         >
           {ROLE_OPTIONS.map((r) => (
-            <option key={r.value} value={r.value}>
-              {r.label}
-            </option>
+            <option key={r.value} value={r.value}>{r.label}</option>
           ))}
         </select>
       </div>
-      <TextField
-        label="Placeholder"
-        value={element.placeholder || ''}
-        onChange={(v) => onChange({ placeholder: v })}
-      />
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField
-          label="Taille"
-          value={element.fontSize}
-          onChange={(v) => onChange({ fontSize: v })}
-        />
-        <div>
-          <label className="block text-[10px] text-ink-600 mb-0.5">Poids</label>
-          <select
-            className="input text-xs py-1.5"
-            value={String(element.fontWeight || 400)}
-            onChange={(e) => onChange({ fontWeight: parseInt(e.target.value) })}
-          >
-            <option value="400">Regular</option>
-            <option value="500">Medium</option>
-            <option value="600">Semi-bold</option>
-            <option value="700">Bold</option>
-          </select>
-        </div>
-      </div>
       <div>
         <label className="block text-[10px] text-ink-600 mb-0.5">Police</label>
-        <FontPicker
-          value={element.fontFamily}
-          onChange={(v) => onChange({ fontFamily: v })}
-        />
+        <FontPicker value={element.fontFamily} onChange={(v) => onChange({ fontFamily: v })} />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <ColorField
-          label="Couleur"
-          value={element.color}
-          onChange={(v) => onChange({ color: v })}
-        />
         <ColorField
           label="Fond"
           value={element.backgroundColor || ''}
           onChange={(v) => onChange({ backgroundColor: v || undefined })}
         />
+        <NumberField
+          label="Padding fond"
+          value={element.padding ?? 0}
+          onChange={(v) => onChange({ padding: Math.max(0, v) })}
+        />
       </div>
       <div>
-        <label className="block text-[10px] text-ink-600 mb-0.5">Fond : mode</label>
+        <label className="block text-[10px] text-ink-600 mb-0.5">Mode fond</label>
         <div className="flex gap-1">
           {(['block', 'inline'] as const).map((m) => (
             <button
               key={m}
               onClick={() => onChange({ bgMode: m })}
               className={`flex-1 py-1.5 rounded-lg text-[10px] ${
-                (element.bgMode || 'block') === m
-                  ? 'bg-ink-900 text-white'
-                  : 'bg-cream-100 text-ink-700'
+                (element.bgMode || 'block') === m ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
               }`}
               title={m === 'block' ? 'Fond sur tout le bloc' : 'Fond ajusté au texte'}
             >
@@ -1146,27 +1151,100 @@ function TextProperties({
           ))}
         </div>
       </div>
+
+      {/* ── Liste des blocs de texte ───────────────────── */}
       <div>
-        <label className="block text-[10px] text-ink-600 mb-0.5">Alignement</label>
-        <div className="flex gap-1">
-          {(['left', 'center', 'right'] as const).map((a) => (
-            <button
-              key={a}
-              onClick={() => onChange({ align: a })}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] ${
-                element.align === a ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] uppercase tracking-wide text-ink-600 font-medium">Blocs de texte</span>
+          <button
+            onClick={addPara}
+            className="text-[10px] px-2 py-0.5 rounded bg-cream-100 hover:bg-cream-200 text-ink-700"
+          >
+            + Ajouter
+          </button>
+        </div>
+        <div className="flex flex-col gap-1">
+          {paragraphs.map((p, i) => (
+            <div
+              key={i}
+              onClick={() => setSelIdx(i)}
+              className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer ${
+                clampedIdx === i
+                  ? 'bg-ink-900 text-white'
+                  : 'bg-cream-100 text-ink-700 hover:bg-cream-200'
               }`}
             >
-              {a}
-            </button>
+              <span className="text-[10px] truncate flex-1 mr-1">{p.text || '(vide)'}</span>
+              {paragraphs.length > 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); removePara(i) }}
+                  className={`text-xs shrink-0 ${
+                    clampedIdx === i ? 'text-white/60 hover:text-white' : 'text-ink-400 hover:text-red-500'
+                  }`}
+                >
+                  ×
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </div>
-      <NumberField
-        label="Padding (px)"
-        value={element.padding ?? 0}
-        onChange={(v) => onChange({ padding: Math.max(0, v) })}
-      />
+
+      {/* ── Édition du bloc sélectionné ──────────────────── */}
+      <div className="border-t border-ink-100 pt-3 space-y-2">
+        <div className="text-[10px] uppercase tracking-wide text-ink-600 font-medium">
+          Bloc {clampedIdx + 1} / {paragraphs.length}
+        </div>
+        <div>
+          <label className="block text-[10px] text-ink-600 mb-0.5">Texte</label>
+          <textarea
+            className="input text-xs py-1.5 min-h-[56px] resize-none w-full"
+            value={sel.text}
+            onChange={(e) => updatePara({ text: e.target.value })}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField
+            label="Taille"
+            value={effFontSize}
+            onChange={(v) => updatePara({ fontSize: v })}
+          />
+          <div>
+            <label className="block text-[10px] text-ink-600 mb-0.5">Poids</label>
+            <select
+              className="input text-xs py-1.5"
+              value={effWeight}
+              onChange={(e) => updatePara({ fontWeight: parseInt(e.target.value) })}
+            >
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semi-bold</option>
+              <option value="700">Bold</option>
+            </select>
+          </div>
+        </div>
+        <ColorField
+          label="Couleur"
+          value={effColor}
+          onChange={(v) => updatePara({ color: v })}
+        />
+        <div>
+          <label className="block text-[10px] text-ink-600 mb-0.5">Alignement</label>
+          <div className="flex gap-1">
+            {(['left', 'center', 'right'] as const).map((a) => (
+              <button
+                key={a}
+                onClick={() => updatePara({ align: a })}
+                className={`flex-1 py-1.5 rounded-lg text-[10px] ${
+                  effAlign === a ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
+                }`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </>
   )
 }

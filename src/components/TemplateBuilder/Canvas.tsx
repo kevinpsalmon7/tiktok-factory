@@ -2,7 +2,7 @@
 
 import { Stage, Layer, Rect, Text, Image as KonvaImage, Transformer, Group, Line } from 'react-konva'
 import type Konva from 'konva'
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import useImage from 'use-image'
 import type {
   TemplateLayout,
@@ -10,9 +10,12 @@ import type {
   TextElement,
   ImageElement,
   RectElement,
+  TextParagraph,
 } from '@/types/database'
 
 type SnapLine = { type: 'v' | 'h'; pos: number }
+
+const PARA_GAP = 6 // px gap between consecutive paragraphs
 
 type Props = {
   layout: TemplateLayout
@@ -393,6 +396,36 @@ function ElementNode({
   return null
 }
 
+// Resolve element.paragraphs (rich) or fall back to a single legacy paragraph.
+function resolveParagraphs(element: TextElement): Array<{
+  text: string
+  fontSize: number
+  fontWeight: number | string
+  color: string
+  align: 'left' | 'center' | 'right'
+  lineHeight: number
+}> {
+  const def = {
+    fontSize: element.fontSize,
+    fontWeight: element.fontWeight || 400,
+    color: element.color,
+    align: (element.align || 'left') as 'left' | 'center' | 'right',
+    lineHeight: element.lineHeight || 1.2,
+  }
+  const src: TextParagraph[] =
+    element.paragraphs && element.paragraphs.length > 0
+      ? element.paragraphs
+      : [{ text: element.placeholder || roleLabel(element.role) }]
+  return src.map((p) => ({
+    text: p.text,
+    fontSize: p.fontSize ?? def.fontSize,
+    fontWeight: p.fontWeight ?? def.fontWeight,
+    color: p.color ?? def.color,
+    align: (p.align ?? def.align) as 'left' | 'center' | 'right',
+    lineHeight: p.lineHeight ?? def.lineHeight,
+  }))
+}
+
 function TextNode({
   element,
   common,
@@ -404,106 +437,84 @@ function TextNode({
   isSelected: boolean
 }) {
   const bgMode = element.bgMode || 'block'
-  const text = element.placeholder || roleLabel(element.role)
+  const padding = element.padding || 0
+  const paras = resolveParagraphs(element)
+
+  // block mode: text inset by padding on all sides
+  // inline mode: text uses full width, padding controls bg rect visual margin
+  const textX = bgMode === 'block' ? padding : 0
+  const textW = bgMode === 'block' ? Math.max(10, element.width - padding * 2) : element.width
+  let curY = bgMode === 'block' ? padding : 0
+
+  const items = paras.map((p, i) => {
+    const lines = wrapText(p.text, textW, p.fontSize, element.fontFamily, p.fontWeight)
+    const lh = p.lineHeight * p.fontSize
+    const y = curY
+    curY += lines.length * lh + (i < paras.length - 1 ? PARA_GAP : 0)
+    return { p, lines, lh, y }
+  })
 
   return (
-    <Group {...common} width={element.width} height={element.height}>
-      {/* Hitbox: transparent-filled Rect covering the full element so the
-          Group picks up mouse events even when the real bg / text are
-          listening={false}. Also doubles as the visual outline when not selected. */}
+    <Group
+      {...common}
+      width={element.width}
+      height={element.height}
+      clipFunc={(ctx: CanvasRenderingContext2D) => {
+        ctx.rect(0, 0, element.width, element.height)
+      }}
+    >
+      {/* Hitbox */}
       <Rect
-        x={0}
-        y={0}
-        width={element.width}
-        height={element.height}
+        x={0} y={0} width={element.width} height={element.height}
         fill="rgba(0,0,0,0.001)"
         stroke={isSelected ? undefined : '#cccccc'}
         strokeWidth={isSelected ? 0 : 1}
         dash={isSelected ? undefined : [4, 4]}
       />
-      
 
       {/* Block background — fills whole rect */}
       {element.backgroundColor && bgMode === 'block' && (
-        <Rect
-          x={0}
-          y={0}
-          width={element.width}
-          height={element.height}
-          fill={element.backgroundColor}
-          listening={false}
+        <Rect x={0} y={0} width={element.width} height={element.height}
+          fill={element.backgroundColor} listening={false}
         />
       )}
 
-      {/* Inline background — measured to hug the text per line */}
-      {element.backgroundColor && bgMode === 'inline' && (
-        <InlineTextBackground element={element} text={text} />
-      )}
-
-      <Text
-        x={element.padding || 0}
-        y={element.padding || 0}
-        width={element.width - (element.padding || 0) * 2}
-        height={element.height - (element.padding || 0) * 2}
-        text={text}
-        fontSize={element.fontSize}
-        fontFamily={element.fontFamily}
-        fontStyle={String(element.fontWeight || 400).includes('7') ? 'bold' : 'normal'}
-        fill={element.color}
-        align={element.align || 'left'}
-        lineHeight={element.lineHeight || 1}
-        verticalAlign="top"
-        listening={false}
-      />
-    </Group>
-  )
-}
-
-function InlineTextBackground({ element, text }: { element: TextElement; text: string }) {
-  // Use a hidden Konva.Text helper to measure each line's width.
-  // We do this at render time via a ref hack: we render one Rect per line,
-  // but first we need the per-line wrapping. Konva handles wrapping internally
-  // so we rely on its getTextWidth + line splitting approximation.
-  // For simplicity here we draw a single rect sized to the measured text size.
-  // Komva does not expose per-line metrics easily from the consumer side without
-  // creating a Text node. We create one with the same props using a ref-callback.
-  const padding = element.padding || 0
-  const availableWidth = element.width - padding * 2
-
-  // Konva's Text auto-wraps by width — we approximate inline bg by measuring
-  // each wrapped line via an offscreen canvas context.
-  const lines = wrapText(
-    text,
-    availableWidth,
-    element.fontSize,
-    element.fontFamily,
-    element.fontWeight
-  )
-  const lineHeight = (element.lineHeight || 1) * element.fontSize
-
-  return (
-    <>
-      {lines.map((line, i) => {
-        if (!line.trim()) return null
-        const w = measureTextWidth(line, element.fontSize, element.fontFamily, element.fontWeight)
-        // Alignment
-        let xOffset = padding
-        if (element.align === 'center') xOffset = padding + (availableWidth - w) / 2
-        else if (element.align === 'right') xOffset = padding + (availableWidth - w)
-        return (
-          <Rect
-            key={i}
-            x={xOffset - 6}
-            y={padding + i * lineHeight - 2}
-            width={w + 12}
-            height={lineHeight + 4}
-            fill={element.backgroundColor}
-            cornerRadius={4}
+      {/* Paragraphs */}
+      {items.map(({ p, lines, lh, y }, pi) => (
+        <Fragment key={pi}>
+          {/* Inline bg — one rect per wrapped line, padding = visual margin */}
+          {element.backgroundColor && bgMode === 'inline' && lines.map((line, li) => {
+            if (!line.trim()) return null
+            const w = measureTextWidth(line, p.fontSize, element.fontFamily, p.fontWeight)
+            const lx = p.align === 'center' ? (textW - w) / 2
+                     : p.align === 'right'  ? textW - w : 0
+            const bx = Math.max(0, lx - padding)
+            const bw = Math.min(element.width - bx, w + padding * 2)
+            const bgPadV = Math.max(2, padding / 2)
+            return (
+              <Rect key={li}
+                x={bx} y={y + li * lh - bgPadV}
+                width={bw} height={lh + bgPadV * 2}
+                fill={element.backgroundColor} cornerRadius={4} listening={false}
+              />
+            )
+          })}
+          {/* Text */}
+          <Text
+            x={textX} y={y} width={textW}
+            text={p.text}
+            fontSize={p.fontSize}
+            fontFamily={element.fontFamily}
+            fontStyle={String(p.fontWeight || 400).includes('7') ? 'bold' : 'normal'}
+            fill={p.color}
+            align={p.align}
+            lineHeight={p.lineHeight}
+            verticalAlign="top"
             listening={false}
           />
-        )
-      })}
-    </>
+        </Fragment>
+      ))}
+    </Group>
   )
 }
 

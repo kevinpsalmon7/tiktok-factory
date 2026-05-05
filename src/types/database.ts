@@ -136,6 +136,15 @@ export type TemplateElementType = 'text' | 'image' | 'rect'
 // The generator (Claude) fills each role with appropriate copy.
 export type TextRole = 'title' | 'subtitle' | 'text' | 'cta'
 
+export type TextParagraph = {
+  text: string
+  fontSize?: number
+  fontWeight?: number | string
+  color?: string
+  align?: 'left' | 'center' | 'right'
+  lineHeight?: number
+}
+
 export interface BaseElement {
   id: string
   type: TemplateElementType
@@ -162,7 +171,8 @@ export interface TextElement extends BaseElement {
   align?: 'left' | 'center' | 'right'
   padding?: number
   lineHeight?: number
-  placeholder?: string // shown in builder preview
+  placeholder?: string // shown in builder preview (legacy — use paragraphs instead)
+  paragraphs?: TextParagraph[] // per-paragraph rich styling
 }
 
 export interface ImageElement extends BaseElement {
