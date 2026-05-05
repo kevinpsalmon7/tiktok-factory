@@ -1,8 +1,10 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { Sparkles, Images, LayoutTemplate, ArrowRight } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
-import { DashboardGenerateInput } from './DashboardGenerateInput'
+import { GenerateForm } from '@/app/(app)/generate/GenerateForm'
+import type { TemplateLayout } from '@/types/database'
 
 type RecentCarousel = {
   id: string
@@ -35,10 +37,10 @@ export default async function DashboardPage() {
         .returns<RecentCarousel[]>(),
       supabase
         .from('templates')
-        .select('id, name')
+        .select('id, name, layout')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .returns<{ id: string; name: string }[]>(),
+        .order('updated_at', { ascending: false })
+        .returns<{ id: string; name: string; layout: TemplateLayout }[]>(),
     ])
 
   return (
@@ -52,7 +54,15 @@ export default async function DashboardPage() {
             Créez votre prochain carousel en quelques secondes.
           </p>
         </div>
-        <DashboardGenerateInput templates={templates || []} />
+        {templates && templates.length > 0 ? (
+          <Suspense fallback={null}>
+            <GenerateForm templates={templates} />
+          </Suspense>
+        ) : (
+          <div className="bg-white rounded-xl2 p-5 shadow-soft text-sm text-ink-600">
+            <Link href="/templates" className="text-ink-900 underline underline-offset-2">Créez un template</Link> pour pouvoir générer des carousels.
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
