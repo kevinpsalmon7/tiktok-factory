@@ -160,82 +160,22 @@ export function BuilderCanvas({
             'bottom-center',
           ]}
           boundBoxFunc={(oldBox, newBox) => {
-            if (newBox.width < 20 || newBox.height < 20) return oldBox
-
-            // Clamp to canvas bounds — elements cannot go outside the canvas.
-            if (newBox.x < 0) { newBox.width += newBox.x; newBox.x = 0 }
-            if (newBox.y < 0) { newBox.height += newBox.y; newBox.y = 0 }
-            if (newBox.x + newBox.width > layout.width) newBox.width = layout.width - newBox.x
-            if (newBox.y + newBox.height > layout.height) newBox.height = layout.height - newBox.y
-            if (newBox.width < 20 || newBox.height < 20) return oldBox
-
-            if (!snapEnabled) return newBox
-
-            // boundBoxFunc coordinates are in the layer's local space = logical px
-            const T = SNAP_THRESHOLD
-            const CW = layout.width
-            const CH = layout.height
-            const p = layout.padding
-            const eps = 0.5
+            // boundBoxFunc receives coordinates in ABSOLUTE stage pixels.
+            // Convert canvas logical bounds to stage pixels for correct clamping.
+            const left   = RULER_SIZE
+            const top    = RULER_SIZE
+            const right  = RULER_SIZE + layout.width  * scale
+            const bottom = RULER_SIZE + layout.height * scale
 
             let { x, y, width, height } = newBox
-            const lines: SnapLine[] = []
 
-            const leftMoved = Math.abs(x - oldBox.x) > eps
-            const rightMoved = Math.abs((x + width) - (oldBox.x + oldBox.width)) > eps
-            const topMoved = Math.abs(y - oldBox.y) > eps
-            const bottomMoved = Math.abs((y + height) - (oldBox.y + oldBox.height)) > eps
+            // Clamp to canvas — left/top anchors
+            if (x < left)   { width += x - left;   x = left }
+            if (y < top)    { height += y - top;    y = top  }
+            // Clamp to canvas — right/bottom anchors
+            if (x + width  > right)  width  = right  - x
+            if (y + height > bottom) height = bottom - y
 
-            // Left edge snap
-            if (leftMoved && !rightMoved) {
-              const targets = [0, ...(p?.left ? [p.left] : [])]
-              for (const t of targets) {
-                if (Math.abs(x - t) < T) {
-                  width = width + (x - t)
-                  x = t
-                  lines.push({ type: 'v', pos: t })
-                  break
-                }
-              }
-            }
-            // Right edge snap
-            if (rightMoved && !leftMoved) {
-              const right = x + width
-              const targets = [CW, ...(p?.right ? [CW - p.right] : [])]
-              for (const t of targets) {
-                if (Math.abs(right - t) < T) {
-                  width = t - x
-                  lines.push({ type: 'v', pos: t })
-                  break
-                }
-              }
-            }
-            // Top edge snap
-            if (topMoved && !bottomMoved) {
-              const targets = [0, ...(p?.top ? [p.top] : [])]
-              for (const t of targets) {
-                if (Math.abs(y - t) < T) {
-                  height = height + (y - t)
-                  y = t
-                  lines.push({ type: 'h', pos: t })
-                  break
-                }
-              }
-            }
-            // Bottom edge snap
-            if (bottomMoved && !topMoved) {
-              const bottom = y + height
-              const targets = [CH, ...(p?.bottom ? [CH - p.bottom] : [])]
-              for (const t of targets) {
-                if (Math.abs(bottom - t) < T) {
-                  height = t - y
-                  lines.push({ type: 'h', pos: t })
-                  break
-                }
-              }
-            }
-
-            setSnapLines(lines)
             if (width < 20 || height < 20) return oldBox
             return { ...newBox, x, y, width, height }
           }}
