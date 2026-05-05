@@ -5,6 +5,7 @@ import { formatDateTime } from '@/lib/utils'
 
 type CarouselRow = {
   id: string
+  title: string
   prompt: string
   carousel_type: string
   status: string
@@ -19,7 +20,7 @@ export default async function GalleryPage() {
 
   const { data: carousels } = await supabase
     .from('carousels')
-    .select('id, prompt, carousel_type, status, slides, created_at')
+    .select('id, title, prompt, carousel_type, status, slides, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .returns<CarouselRow[]>()
@@ -83,7 +84,7 @@ export default async function GalleryPage() {
               </div>
               <div className="mt-2">
                 <p className="text-sm text-ink-900 font-medium line-clamp-1">
-                  {c.carousel_type || c.prompt || 'Sans titre'}
+                  {c.title || c.carousel_type || c.prompt || 'Sans titre'}
                 </p>
                 <p className="text-xs text-ink-600/60">{formatDateTime(c.created_at)}</p>
               </div>

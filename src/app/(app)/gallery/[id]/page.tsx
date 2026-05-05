@@ -3,9 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Download } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { CarouselMeta } from './CarouselMeta'
 
 type CarouselRow = {
   id: string
+  title: string
+  description: string
   prompt: string
   carousel_type: string
   status: string
@@ -25,7 +28,7 @@ export default async function CarouselDetailPage({
 
   const { data: carousel } = await supabase
     .from('carousels')
-    .select('id, prompt, carousel_type, status, slides, created_at')
+    .select('id, title, description, prompt, carousel_type, status, slides, created_at')
     .eq('id', id)
     .eq('user_id', user.id)
     .single<CarouselRow>()
@@ -38,11 +41,14 @@ export default async function CarouselDetailPage({
         <Link href="/gallery" className="p-2 rounded-full bg-white shadow-soft hover:shadow-card">
           <ArrowLeft size={16} />
         </Link>
-        <div>
-          <h1 className="font-display text-3xl font-semibold text-ink-900">
-            {carousel.carousel_type || 'Carousel'}
-          </h1>
-          <p className="text-xs text-ink-600/60">{formatDateTime(carousel.created_at)}</p>
+        <div className="flex-1 min-w-0">
+          <CarouselMeta
+            id={carousel.id}
+            initialTitle={carousel.title}
+            initialDescription={carousel.description}
+            fallbackTitle={carousel.carousel_type || carousel.prompt || 'Carousel'}
+          />
+          <p className="text-xs text-ink-600/60 mt-1">{formatDateTime(carousel.created_at)}</p>
         </div>
       </div>
 
