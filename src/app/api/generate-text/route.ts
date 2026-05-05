@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { generateCarousels } from '@/lib/anthropic'
+import { generateCarousels, extractIntent } from '@/lib/anthropic'
 
 type ProfileRow = {
   master_instructions: string
@@ -23,10 +23,9 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
-  const { templateId, prompt: userPrompt, count = 1 } = body as {
+  const { templateId, prompt: userPrompt } = body as {
     templateId: string
     prompt?: string
-    count?: number
   }
 
   if (!templateId) {
@@ -101,18 +100,46 @@ export async function POST(request: Request) {
 ${lines.join('\n')}`
     }
 
-    const carousels = await generateCarousels({
-      apiKey,
-      styleGuide: template.style_guide,
-      carouselInstructions: template.carousel_instructions,
-      masterInstructions: profile?.master_instructions,
-      avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
-      userPrompt,
-      historyBlock,
-      count,
-      rolesByType,
-    })
-    return NextResponse.json({ carousels })
+    // Parse natural language intent to get count + per-carousel topics
+    const intent = await extractIntent(userPrompt || '', apiKey)
+
+    // Generate all carousels — if per-carousel instructions exist, generate one by one
+    let allCarousels: unknown[] = []
+    if (intent.count === 1 || intent.perCarousel.every(p => p === null)) {
+      // Single call for all (same topic or no specific topic)
+      allCarousels = await generateCarousels({
+        apiKey,
+        styleGuide: template.style_guide,
+        carouselInstructions: template.carousel_instructions,
+        masterInstructions: profile?.master_instructions,
+        avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
+        userPrompt,
+        historyBlock,
+        count: intent.count,
+        rolesByType,
+      })
+    } else {
+      // Separate call per carousel with its specific instruction
+      for (let i = 0; i < intent.count; i++) {
+        const specificPrompt = intent.perCarousel[i]
+          ? `${userPrompt ? userPrompt + ' — ' : ''}${intent.perCarousel[i]}`
+          : userPrompt
+        const one = await generateCarousels({
+          apiKey,
+          styleGuide: template.style_guide,
+          carouselInstructions: template.carousel_instructions,
+          masterInstructions: profile?.master_instructions,
+          avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
+          userPrompt: specificPrompt,
+          historyBlock,
+          count: 1,
+          rolesByType,
+        })
+        allCarousels = [...allCarousels, ...one]
+      }
+    }
+
+    return NextResponse.json({ carousels: allCarousels })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })

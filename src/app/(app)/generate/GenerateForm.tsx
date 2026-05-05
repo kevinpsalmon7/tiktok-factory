@@ -17,7 +17,6 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
   const [tab, setTab] = useState<Tab>('creation')
   const [templateId, setTemplateId] = useState(templates[0]?.id || '')
   const [prompt, setPrompt] = useState('')
-  const [count, setCount] = useState(1)
   const [loading, setLoading] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
   const [lastCreatedId, setLastCreatedId] = useState<string | null>(null)
@@ -128,11 +127,11 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
 
     try {
       // 1. Generate all texts in one Claude call
-      pushStep({ key: 'text', label: `Génération des textes — ${count} carousel(s) (Claude)`, status: 'running' })
+      pushStep({ key: 'text', label: 'Analyse et génération des textes (Claude)', status: 'running' })
       const textRes = await fetch('/api/generate-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, prompt, count }),
+        body: JSON.stringify({ templateId, prompt }),
       })
       if (!textRes.ok) { const { error } = await textRes.json(); throw new Error(error || 'Échec génération texte') }
       const { carousels } = await textRes.json()
@@ -205,18 +204,6 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           </div>
 
           <div>
-            <label className="block text-xs text-ink-600 mb-2">Nombre de carousels</label>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5].map(n => (
-                <button key={n} onClick={() => setCount(n)}
-                  className={`w-9 h-9 rounded-full text-sm font-medium transition ${count === n ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
             <label className="block text-xs text-ink-600 mb-2">Idée / instruction (optionnel)</label>
             <textarea
               className="textarea min-h-[100px]"
@@ -230,7 +217,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           <button onClick={handleGenerate} disabled={loading}
             className="inline-flex items-center gap-2 px-5 py-3 bg-ink-900 text-white rounded-full text-sm font-medium hover:bg-ink-800 disabled:opacity-50 shadow-card">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            {loading ? 'Génération en cours…' : `Générer ${count > 1 ? `${count} carousels` : 'le carousel'}`}
+            {loading ? 'Génération en cours…' : 'Générer'}
           </button>
         </div>
       )}

@@ -1,5 +1,43 @@
 import Anthropic from '@anthropic-ai/sdk'
 
+export type CarouselIntent = {
+  count: number
+  // Per-carousel specific instruction (null = use global prompt)
+  perCarousel: (string | null)[]
+}
+
+export async function extractIntent(prompt: string, apiKey: string): Promise<CarouselIntent> {
+  if (!prompt?.trim()) return { count: 1, perCarousel: [null] }
+
+  const client = new Anthropic({ apiKey })
+  const res = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 256,
+    messages: [{
+      role: 'user',
+      content: `Extract from this user request: how many carousels to create, and the specific topic/instruction for each one.
+Return ONLY valid JSON: {"count": <number 1-10>, "perCarousel": [<string or null for each carousel>]}
+- If no specific per-carousel topic, use null.
+- perCarousel array must have exactly "count" entries.
+User request: "${prompt.replace(/"/g, "'")}"`
+    }]
+  })
+
+  try {
+    const text = res.content[0].type === 'text' ? res.content[0].text.trim() : ''
+    const cleaned = text.replace(/```json|```/g, '').trim()
+    const parsed = JSON.parse(cleaned)
+    const count = Math.max(1, Math.min(10, parseInt(parsed.count) || 1))
+    const perCarousel: (string | null)[] = Array.isArray(parsed.perCarousel)
+      ? parsed.perCarousel.slice(0, count).map((x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null))
+      : Array(count).fill(null)
+    while (perCarousel.length < count) perCarousel.push(null)
+    return { count, perCarousel }
+  } catch {
+    return { count: 1, perCarousel: [null] }
+  }
+}
+
 type GenerateArgs = {
   apiKey: string
   styleGuide: string
