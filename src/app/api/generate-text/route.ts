@@ -33,6 +33,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'templateId required' }, { status: 400 })
   }
 
+  // Fetch last 2 days of completed carousels for topic avoidance
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: recentCarousels } = await supabase
+    .from('carousels')
+    .select('title, carousel_type, slides, created_at')
+    .eq('user_id', user.id)
+    .eq('status', 'completed')
+    .gte('created_at', twoDaysAgo)
+    .order('created_at', { ascending: false })
+    .returns<{ title: string; carousel_type: string; slides: { text_fields: Record<string, string> }[]; created_at: string }[]>()
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('master_instructions, avatar_instructions, anthropic_api_key')
@@ -78,6 +89,18 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Build history block from last 2 days
+    let historyBlock = ''
+    if (recentCarousels && recentCarousels.length > 0) {
+      const lines = recentCarousels.map((c) => {
+        const label = c.title || c.carousel_type || 'Sans titre'
+        const texts = (c.slides || []).flatMap(s => Object.values(s.text_fields || {})).filter(Boolean)
+        return `- ${label}: ${texts.slice(0, 3).join(' / ')}`
+      })
+      historyBlock = `RECENT HISTORY (last 48h — do NOT repeat these topics or angles):
+${lines.join('\n')}`
+    }
+
     const carousels = await generateCarousels({
       apiKey,
       styleGuide: template.style_guide,
@@ -85,6 +108,7 @@ export async function POST(request: Request) {
       masterInstructions: profile?.master_instructions,
       avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
       userPrompt,
+      historyBlock,
       count,
       rolesByType,
     })

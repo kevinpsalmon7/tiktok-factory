@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Sparkles, Images, LayoutTemplate, ArrowRight } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { DashboardGenerateInput } from './DashboardGenerateInput'
 
 type RecentCarousel = {
   id: string
@@ -21,7 +22,7 @@ export default async function DashboardPage() {
     user.email?.split('@')[0] ||
     'Créateur'
 
-  const [{ count: carouselsCount }, { count: templatesCount }, { data: recent }] =
+  const [{ count: carouselsCount }, { count: templatesCount }, { data: recent }, { data: templates }] =
     await Promise.all([
       supabase.from('carousels').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
       supabase.from('templates').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
@@ -32,17 +33,26 @@ export default async function DashboardPage() {
         .order('created_at', { ascending: false })
         .limit(4)
         .returns<RecentCarousel[]>(),
+      supabase
+        .from('templates')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .returns<{ id: string; name: string }[]>(),
     ])
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="font-display text-5xl font-semibold text-ink-900 tracking-tight">
-          Bon retour, {displayName}.
-        </h1>
-        <p className="text-ink-600 mt-2">
-          Créez votre prochain carousel en quelques secondes.
-        </p>
+      <div className="space-y-4">
+        <div>
+          <h1 className="font-display text-5xl font-semibold text-ink-900 tracking-tight">
+            Bon retour, {displayName}.
+          </h1>
+          <p className="text-ink-600 mt-2">
+            Créez votre prochain carousel en quelques secondes.
+          </p>
+        </div>
+        <DashboardGenerateInput templates={templates || []} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -4,11 +4,11 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
-  Sparkles,
   Images,
   LayoutTemplate,
   Settings,
   LogOut,
+  History,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -17,9 +17,9 @@ type NavItem = { href: string; label: string; icon: React.ElementType }
 
 const generalItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/generate', label: 'Générer', icon: Sparkles },
-  { href: '/gallery', label: 'Galerie', icon: Images },
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },
+  { href: '/gallery', label: 'Galerie', icon: Images },
+  { href: '/historique', label: 'Historique', icon: History },
 ]
 
 const toolsItems: NavItem[] = [

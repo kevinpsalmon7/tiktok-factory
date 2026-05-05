@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Sparkles, Loader2, Check, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { renderSlideToDataUrl, ensureFontsLoaded } from '@/lib/konva-render'
@@ -22,8 +22,16 @@ type Step = {
 
 export function GenerateForm({ templates }: { templates: Template[] }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [templateId, setTemplateId] = useState(templates[0].id)
   const [prompt, setPrompt] = useState('')
+
+  useEffect(() => {
+    const p = searchParams.get('prompt')
+    const t = searchParams.get('templateId')
+    if (p) setPrompt(p)
+    if (t && templates.find(tmpl => tmpl.id === t)) setTemplateId(t)
+  }, [searchParams, templates])
   const [loading, setLoading] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
   const [createdId, setCreatedId] = useState<string | null>(null)

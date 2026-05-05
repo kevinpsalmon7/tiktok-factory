@@ -7,6 +7,7 @@ type GenerateArgs = {
   masterInstructions?: string
   avatarInstructions?: string
   userPrompt?: string
+  historyBlock?: string
   count?: number
   model?: string
   // Map of slide type → list of text roles (e.g., { title: ['title'], content: ['title', 'text'], cta: ['title', 'text', 'cta'] })
@@ -20,6 +21,7 @@ export async function generateCarousels({
   masterInstructions = '',
   avatarInstructions = '',
   userPrompt = '',
+  historyBlock = '',
   count = 1,
   model = 'claude-haiku-4-5-20251001',
   rolesByType,
@@ -33,6 +35,7 @@ export async function generateCarousels({
     ? `PROFIL AVATAR :\n${avatarInstructions}\n\n`
     : ''
   const userBlock = userPrompt ? `DEMANDE UTILISATEUR :\n${userPrompt}\n\n` : ''
+  const historyBl = historyBlock ? `${historyBlock}\n\n` : ''
 
   // Build the slide-types specification block from the template layout.
   // Each slide type lists the text roles Claude must fill in for that type.
@@ -46,7 +49,7 @@ export async function generateCarousels({
         .join('\n')
     : '  - "title", "content", "cta" → text_fields keys: title, text, cta'
 
-  const prompt = `${masterBlock}${avatarBlock}${userBlock}Tu génères du contenu pour des carousels TikTok/Instagram.
+  const prompt = `${masterBlock}${avatarBlock}${historyBl}${userBlock}Tu génères du contenu pour des carousels TikTok/Instagram.
 
 PUNCTUATION RULES — ZERO TOLERANCE:
 - FORBIDDEN: em dash "—". Replace with period or line break.
