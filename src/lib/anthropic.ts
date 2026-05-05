@@ -72,12 +72,13 @@ Return ONLY a valid JSON array with exactly ${count} object(s). No markdown, no 
 Each carousel object must have:
 {
   "carousel_type": "<brief description>",
+  "image_prompt_title": "<background image prompt for slide 1 — see carousel instructions>",
+  "image_prompt_content": "<background image prompt shared by all other slides — see carousel instructions>",
   "slides": [
     {
       "index": 1,
       "slide_type": "<one of the allowed values above>",
-      "text_fields": { "<role>": "<copy>", ... },
-      "illustration_prompt": "<short vivid description for the background image>"
+      "text_fields": { "<role>": "<copy>", ... }
     },
     ...
   ]
@@ -85,8 +86,8 @@ Each carousel object must have:
 
 IMPORTANT:
 - "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.
-- "illustration_prompt" MUST always be filled in for every slide. NEVER leave it empty or null. Write a short vivid scene description (1–2 sentences) of what to illustrate as the background image — describe the setting, character action, mood. This is sent to an image generator.
-- The "illustration_prompt" must NEVER appear in the final visible text.
+- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty. Follow the image prompt rules in the carousel instructions.
+- There is NO illustration_prompt on individual slides.
 - All text in "text_fields" is what will be rendered on the slide.
 `
 

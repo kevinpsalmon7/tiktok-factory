@@ -74,12 +74,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    const imageBytes = await generateImage({
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const sharp = require('sharp')
+
+    const rawBytes = await generateImage({
       apiKey,
       styleInstructions: template.gemini_instructions,
       illustrationPrompt,
       referenceImages,
     })
+
+    // Resize to 1080×1920 (9:16)
+    const imageBytes: Buffer = await sharp(rawBytes)
+      .resize(1080, 1920, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: 92 })
+      .toBuffer()
 
     // Upload to Supabase Storage
     const path = `${user.id}/${carouselId}/bg_${String(slideIndex).padStart(2, '0')}.jpg`

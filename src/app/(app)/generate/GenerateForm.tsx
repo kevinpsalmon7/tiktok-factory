@@ -85,44 +85,40 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       setCreatedId(carouselId)
       updateLastStep({ status: 'done' })
 
-      // 3. Generate images via Gemini for each slide that has an illustration_prompt
-      const updatedSlides: CarouselSlide[] = []
-      for (const slide of slides) {
-        if (!slide.illustration_prompt) {
-          updatedSlides.push(slide)
-          continue
-        }
-        pushStep({
-          key: `img_${slide.index}`,
-          label: `Image ${slide.index} (Gemini)`,
-          status: 'running',
-        })
+      // 3. Generate 2 carousel-level images via Gemini (title + content)
+      const imagePromptTitle: string = carousel.image_prompt_title || ''
+      const imagePromptContent: string = carousel.image_prompt_content || ''
+
+      async function fetchCarouselImage(prompt: string, label: string, slideIndex: number): Promise<string> {
+        pushStep({ key: `img_${label}`, label: `Image ${label} (Gemini)`, status: 'running' })
         try {
           const imgRes = await fetch('/api/generate-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              templateId,
-              carouselId,
-              slideIndex: slide.index,
-              illustrationPrompt: slide.illustration_prompt,
-            }),
+            body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: prompt }),
           })
           if (!imgRes.ok) {
             const { error } = await imgRes.json()
             throw new Error(error || 'Échec génération image')
           }
           const { url } = await imgRes.json()
-          updatedSlides.push({ ...slide, background_url: url })
           updateLastStep({ status: 'done' })
+          return url
         } catch (err) {
-          updateLastStep({
-            status: 'error',
-            error: err instanceof Error ? err.message : String(err),
-          })
-          updatedSlides.push(slide)
+          updateLastStep({ status: 'error', error: err instanceof Error ? err.message : String(err) })
+          return ''
         }
       }
+
+      let titleBgUrl = ''
+      let contentBgUrl = ''
+      if (imagePromptTitle) titleBgUrl = await fetchCarouselImage(imagePromptTitle, 'titre', 1)
+      if (imagePromptContent) contentBgUrl = await fetchCarouselImage(imagePromptContent, 'contenu', 2)
+
+      const updatedSlides: CarouselSlide[] = slides.map((slide) => ({
+        ...slide,
+        background_url: slide.index === 1 ? (titleBgUrl || undefined) : (contentBgUrl || undefined),
+      }))
 
       // 4. Render each slide client-side via Konva
       pushStep({ key: 'fonts', label: 'Chargement des polices', status: 'running' })
