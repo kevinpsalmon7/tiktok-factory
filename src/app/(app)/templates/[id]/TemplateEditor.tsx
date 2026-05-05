@@ -30,6 +30,7 @@ import {
   AlignEndVertical,
   Lock as LockIcon,
   Unlock as UnlockIcon,
+  Upload,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { FontPicker } from '@/components/FontPicker'
@@ -57,10 +58,11 @@ type InitialTemplate = {
   style_guide: string
   carousel_instructions: string
   gemini_instructions: string
+  avatar_instructions: string
   platforms: string[]
 }
 
-type Tab = 'design' | 'style' | 'prompt' | 'gemini' | 'references'
+type Tab = 'design' | 'instructions' | 'references'
 
 const HISTORY_LIMIT = 10
 
@@ -86,6 +88,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
     initialTemplate.carousel_instructions
   )
   const [geminiInstructions, setGeminiInstructions] = useState(initialTemplate.gemini_instructions)
+  const [avatarInstructions, setAvatarInstructions] = useState(initialTemplate.avatar_instructions)
 
   // Normalize incoming layout so older saves still work with the new model.
   const normalizedInitial = useMemo(
@@ -357,6 +360,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         style_guide: styleGuide,
         carousel_instructions: carouselInstructions,
         gemini_instructions: geminiInstructions,
+        avatar_instructions: avatarInstructions,
       })
       .eq('id', initialTemplate.id)
     setSaving(false)
@@ -450,14 +454,8 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         <TabButton active={tab === 'design'} onClick={() => setTab('design')}>
           Design
         </TabButton>
-        <TabButton active={tab === 'style'} onClick={() => setTab('style')}>
-          Style guide
-        </TabButton>
-        <TabButton active={tab === 'prompt'} onClick={() => setTab('prompt')}>
+        <TabButton active={tab === 'instructions'} onClick={() => setTab('instructions')}>
           Instructions
-        </TabButton>
-        <TabButton active={tab === 'gemini'} onClick={() => setTab('gemini')}>
-          Images (Gemini)
         </TabButton>
         <TabButton active={tab === 'references'} onClick={() => setTab('references')}>
           Références visuelles
@@ -623,41 +621,40 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
             )}
           </div>
         </div>
-      ) : tab === 'style' ? (
+      ) : tab === 'instructions' ? (
         <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
-          <h2 className="font-display text-xl font-semibold mb-1">Style guide</h2>
-          <p className="text-sm text-ink-600 mb-4">
-            Règles de style, ton, ponctuation — lues par Claude pour chaque génération.
+          <h2 className="font-display text-xl font-semibold mb-1">Instructions</h2>
+          <p className="text-sm text-ink-600 mb-6">
+            Définissez le contexte et les consignes transmis à l&apos;IA lors de la génération.
+            Chaque section accepte un fichier PDF, .txt ou .md.
           </p>
-          <textarea
-            className="textarea min-h-[400px] font-mono text-xs"
-            value={styleGuide}
-            onChange={(e) => setStyleGuide(e.target.value)}
-          />
-        </div>
-      ) : tab === 'prompt' ? (
-        <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
-          <h2 className="font-display text-xl font-semibold mb-1">Instructions carousel</h2>
-          <p className="text-sm text-ink-600 mb-4">
-            Structure attendue, nombre de slides, champs à remplir. Claude génère un JSON suivant ces consignes.
-          </p>
-          <textarea
-            className="textarea min-h-[400px] font-mono text-xs"
-            value={carouselInstructions}
-            onChange={(e) => setCarouselInstructions(e.target.value)}
-          />
-        </div>
-      ) : tab === 'gemini' ? (
-        <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
-          <h2 className="font-display text-xl font-semibold mb-1">Instructions image (Gemini)</h2>
-          <p className="text-sm text-ink-600 mb-4">
-            Style global appliqué à toutes les images générées (palette, composition, ambiance).
-          </p>
-          <textarea
-            className="textarea min-h-[400px]"
-            value={geminiInstructions}
-            onChange={(e) => setGeminiInstructions(e.target.value)}
-          />
+          <div className="space-y-8">
+            <InstructionSection
+              title="Instructions générales"
+              subtitle="Consignes de structure, nombre de slides, contraintes de génération."
+              value={carouselInstructions}
+              onChange={setCarouselInstructions}
+              mono
+            />
+            <InstructionSection
+              title="Avatar"
+              subtitle="Profil du persona : voix, ton, valeurs, histoire."
+              value={avatarInstructions}
+              onChange={setAvatarInstructions}
+            />
+            <InstructionSection
+              title="Style d&apos;écriture"
+              subtitle="Règles de style, ponctuation, registre de langue."
+              value={styleGuide}
+              onChange={setStyleGuide}
+            />
+            <InstructionSection
+              title="Style artistique"
+              subtitle="Directives visuelles pour les images générées par Gemini."
+              value={geminiInstructions}
+              onChange={setGeminiInstructions}
+            />
+          </div>
         </div>
       ) : (
         <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
@@ -1362,6 +1359,80 @@ function ColorField({
           placeholder="#000000"
         />
       </div>
+    </div>
+  )
+}
+
+function InstructionSection({
+  title,
+  subtitle,
+  value,
+  onChange,
+  mono = false,
+}: {
+  title: string
+  subtitle: string
+  value: string
+  onChange: (v: string) => void
+  mono?: boolean
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+      if (ext === 'md' || ext === 'txt') {
+        const text = await file.text()
+        onChange(text)
+      } else if (ext === 'pdf') {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch('/api/parse-document', { method: 'POST', body: fd })
+        if (!res.ok) throw new Error('Parse failed')
+        const { text } = await res.json()
+        onChange(text)
+      }
+    } catch {
+      alert('Erreur lors de la lecture du fichier.')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  return (
+    <div className="space-y-2 pb-8 border-b border-cream-100 last:border-0 last:pb-0">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-sm text-ink-900">{title}</h3>
+          <p className="text-xs text-ink-600 mt-0.5">{subtitle}</p>
+        </div>
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-ink-200 hover:bg-cream-100 text-ink-700 flex items-center gap-1.5 disabled:opacity-50"
+        >
+          <Upload size={11} />
+          {uploading ? 'Lecture…' : 'Importer'}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.txt,.md"
+          className="hidden"
+          onChange={handleFile}
+        />
+      </div>
+      <textarea
+        className={`textarea min-h-[160px] ${mono ? 'font-mono text-xs' : 'text-sm'}`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Vide — écrire ou importer un fichier PDF, .txt ou .md…"
+      />
     </div>
   )
 }

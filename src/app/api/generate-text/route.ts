@@ -13,6 +13,7 @@ import type { TemplateLayout, TextElement } from '@/types/database'
 type TemplateRow = {
   style_guide: string
   carousel_instructions: string
+  avatar_instructions: string
   layout: TemplateLayout
 }
 
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
 
   const { data: template } = await supabase
     .from('templates')
-    .select('style_guide, carousel_instructions, layout')
+    .select('style_guide, carousel_instructions, avatar_instructions, layout')
     .eq('id', templateId)
     .eq('user_id', user.id)
     .single<TemplateRow>()
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
       styleGuide: template.style_guide,
       carouselInstructions: template.carousel_instructions,
       masterInstructions: profile?.master_instructions,
-      avatarInstructions: profile?.avatar_instructions,
+      avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
       userPrompt,
       count,
       rolesByType,
