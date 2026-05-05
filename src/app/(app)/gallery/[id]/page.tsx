@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, Download } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { CarouselMeta } from './CarouselMeta'
+import { DownloadZipButton } from './DownloadZipButton'
 
 type CarouselRow = {
   id: string
@@ -50,6 +51,12 @@ export default async function CarouselDetailPage({
           />
           <p className="text-xs text-ink-600/60 mt-1">{formatDateTime(carousel.created_at)}</p>
         </div>
+        <DownloadZipButton
+          slides={carousel.slides}
+          title={carousel.title}
+          carouselType={carousel.carousel_type}
+          createdAt={carousel.created_at}
+        />
       </div>
 
       {carousel.prompt && (
