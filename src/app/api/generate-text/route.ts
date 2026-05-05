@@ -100,43 +100,24 @@ export async function POST(request: Request) {
 ${lines.join('\n')}`
     }
 
-    // Parse natural language intent to get count + per-carousel topics
+    // Parse natural language: extract exact count + unique per-carousel instructions
     const intent = await extractIntent(userPrompt || '', apiKey)
 
-    // Generate all carousels — if per-carousel instructions exist, generate one by one
-    let allCarousels: unknown[] = []
-    if (intent.count === 1 || intent.perCarousel.every(p => p === null)) {
-      // Single call for all (same topic or no specific topic)
-      allCarousels = await generateCarousels({
+    // Generate one carousel per specific instruction (each in isolation to avoid topic bleed)
+    const allCarousels: unknown[] = []
+    for (let i = 0; i < intent.count; i++) {
+      const one = await generateCarousels({
         apiKey,
         styleGuide: template.style_guide,
         carouselInstructions: template.carousel_instructions,
         masterInstructions: profile?.master_instructions,
         avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
-        userPrompt,
+        userPrompt: intent.perCarousel[i] || userPrompt || '',
         historyBlock,
-        count: intent.count,
+        count: 1,
         rolesByType,
       })
-    } else {
-      // Separate call per carousel with its specific instruction
-      for (let i = 0; i < intent.count; i++) {
-        const specificPrompt = intent.perCarousel[i]
-          ? `${userPrompt ? userPrompt + ' — ' : ''}${intent.perCarousel[i]}`
-          : userPrompt
-        const one = await generateCarousels({
-          apiKey,
-          styleGuide: template.style_guide,
-          carouselInstructions: template.carousel_instructions,
-          masterInstructions: profile?.master_instructions,
-          avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
-          userPrompt: specificPrompt,
-          historyBlock,
-          count: 1,
-          rolesByType,
-        })
-        allCarousels = [...allCarousels, ...one]
-      }
+      allCarousels.push(...one)
     }
 
     return NextResponse.json({ carousels: allCarousels })

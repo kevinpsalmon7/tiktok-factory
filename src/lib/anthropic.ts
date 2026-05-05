@@ -2,24 +2,34 @@ import Anthropic from '@anthropic-ai/sdk'
 
 export type CarouselIntent = {
   count: number
-  // Per-carousel specific instruction (null = use global prompt)
-  perCarousel: (string | null)[]
+  // One specific, distinct instruction per carousel (never null)
+  perCarousel: string[]
 }
 
 export async function extractIntent(prompt: string, apiKey: string): Promise<CarouselIntent> {
-  if (!prompt?.trim()) return { count: 1, perCarousel: [null] }
+  if (!prompt?.trim()) return { count: 1, perCarousel: [prompt || ''] }
 
   const client = new Anthropic({ apiKey })
   const res = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 256,
+    max_tokens: 512,
     messages: [{
       role: 'user',
-      content: `Extract from this user request: how many carousels to create, and the specific topic/instruction for each one.
-Return ONLY valid JSON: {"count": <number 1-10>, "perCarousel": [<string or null for each carousel>]}
-- If no specific per-carousel topic, use null.
-- perCarousel array must have exactly "count" entries.
-User request: "${prompt.replace(/"/g, "'")}"`
+      content: `You parse carousel generation requests. Read the user's message and:
+1. Extract the EXACT number of carousels stated (default 1 if not stated)
+2. Write a specific, UNIQUE instruction for EACH carousel — no two can overlap in topic or angle
+   - Honor any explicit topic the user mentioned for specific carousels
+   - For unspecified carousels, invent complementary angles from the same context
+   - Keep instructions in the user's language
+
+Return ONLY valid JSON: {"count": N, "carousels": ["instruction 1", "instruction 2", ...]}
+The "carousels" array must have EXACTLY N distinct strings.
+
+Examples:
+- "3 carousels dont un sur la famille et un sur le couple" → {"count":3,"carousels":["TDAH et dynamiques familiales","TDAH et vie de couple / mariage","TDAH et gestion des émotions au quotidien"]}
+- "génère 2 carousels sur le burnout" → {"count":2,"carousels":["Reconnaître les signes du burnout","Se reconstruire après un burnout"]}
+
+User request: "${prompt.replace(/"/g, "'")}"` 
     }]
   })
 
@@ -28,13 +38,13 @@ User request: "${prompt.replace(/"/g, "'")}"`
     const cleaned = text.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(cleaned)
     const count = Math.max(1, Math.min(10, parseInt(parsed.count) || 1))
-    const perCarousel: (string | null)[] = Array.isArray(parsed.perCarousel)
-      ? parsed.perCarousel.slice(0, count).map((x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null))
-      : Array(count).fill(null)
-    while (perCarousel.length < count) perCarousel.push(null)
-    return { count, perCarousel }
+    const carousels: string[] = Array.isArray(parsed.carousels)
+      ? parsed.carousels.slice(0, count).map((x: unknown) => String(x || '').trim()).filter(Boolean)
+      : []
+    while (carousels.length < count) carousels.push(prompt)
+    return { count, perCarousel: carousels }
   } catch {
-    return { count: 1, perCarousel: [null] }
+    return { count: 1, perCarousel: [prompt] }
   }
 }
 
