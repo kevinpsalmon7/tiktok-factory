@@ -475,9 +475,6 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
                 <IconButton onClick={() => addElement('image')} title="Image">
                   <ImageIcon size={14} />
                 </IconButton>
-                <IconButton onClick={() => addElement('rect')} title="Forme">
-                  <Square size={14} />
-                </IconButton>
               </div>
               <div className="flex flex-col gap-1 mt-2">
                 {visibleElementsForActiveType.map((el) => (
@@ -1165,6 +1162,11 @@ function TextProperties({
           ))}
         </div>
       </div>
+      <NumberField
+        label="Padding (px)"
+        value={element.padding ?? 0}
+        onChange={(v) => onChange({ padding: Math.max(0, v) })}
+      />
     </>
   )
 }

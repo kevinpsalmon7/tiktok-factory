@@ -161,6 +161,14 @@ export function BuilderCanvas({
           ]}
           boundBoxFunc={(oldBox, newBox) => {
             if (newBox.width < 20 || newBox.height < 20) return oldBox
+
+            // Clamp to canvas bounds — elements cannot go outside the canvas.
+            if (newBox.x < 0) { newBox.width += newBox.x; newBox.x = 0 }
+            if (newBox.y < 0) { newBox.height += newBox.y; newBox.y = 0 }
+            if (newBox.x + newBox.width > layout.width) newBox.width = layout.width - newBox.x
+            if (newBox.y + newBox.height > layout.height) newBox.height = layout.height - newBox.y
+            if (newBox.width < 20 || newBox.height < 20) return oldBox
+
             if (!snapEnabled) return newBox
 
             // boundBoxFunc coordinates are in the layer's local space = logical px
@@ -392,22 +400,29 @@ function ElementNode({
     },
     onTap: locked ? undefined : onSelect,
     onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
-      if (!snapEnabled) return
       const node = e.target
-      const result = computeSnap(
-        node.x(), node.y(),
-        element.width, element.height,
-        layout, element.id
-      )
-      node.x(result.x)
-      node.y(result.y)
-      onSnapChange(result.lines)
+      const W = layout.width
+      const H = layout.height
+      let nx = Math.max(0, Math.min(W - element.width, node.x()))
+      let ny = Math.max(0, Math.min(H - element.height, node.y()))
+      if (snapEnabled) {
+        const result = computeSnap(nx, ny, element.width, element.height, layout, element.id)
+        nx = result.x
+        ny = result.y
+        onSnapChange(result.lines)
+      }
+      node.x(nx)
+      node.y(ny)
     },
     onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
       onSnapChange([])
-      onUpdate({ x: Math.round(e.target.x()), y: Math.round(e.target.y()) })
+      const x = Math.max(0, Math.min(layout.width - element.width, Math.round(e.target.x())))
+      const y = Math.max(0, Math.min(layout.height - element.height, Math.round(e.target.y())))
+      onUpdate({ x, y })
     },
-    onTransformEnd: (e: Konva.KonvaEventObject<Event>) => {
+    // Reset scale every frame during transform so the element re-renders at the
+    // correct logical size. Fixes text wrapping and the "two-box" visual glitch.
+    onTransform: (e: Konva.KonvaEventObject<Event>) => {
       const node = e.target
       const scaleX = node.scaleX()
       const scaleY = node.scaleY()
@@ -418,6 +433,16 @@ function ElementNode({
         y: Math.round(node.y()),
         width: Math.max(20, Math.round(node.width() * scaleX)),
         height: Math.max(20, Math.round(node.height() * scaleY)),
+      })
+    },
+    onTransformEnd: (e: Konva.KonvaEventObject<Event>) => {
+      const node = e.target
+      // Scale is already 1 after onTransform; just persist the final position.
+      onUpdate({
+        x: Math.round(node.x()),
+        y: Math.round(node.y()),
+        width: Math.max(20, Math.round(node.width())),
+        height: Math.max(20, Math.round(node.height())),
       })
     },
   }
