@@ -137,7 +137,8 @@ export type TemplateElementType = 'text' | 'image' | 'rect'
 export type TextRole = 'title' | 'subtitle' | 'text' | 'cta'
 
 export type TextParagraph = {
-  text: string
+  role?: TextRole
+  text?: string
   fontSize?: number
   fontWeight?: number | string
   color?: string

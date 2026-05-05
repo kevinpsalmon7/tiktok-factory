@@ -224,7 +224,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         backgroundColor: '#ffffff',
         bgMode: 'inline',
         padding: 8,
-        paragraphs: [{ text: 'Nouveau texte' }],
+        paragraphs: [{ role: 'title' as TextRole }],
       } satisfies TextElement
     } else if (type === 'image') {
       newEl = {
@@ -1075,7 +1075,7 @@ function TextProperties({
   const paragraphs: TextParagraph[] =
     element.paragraphs && element.paragraphs.length > 0
       ? element.paragraphs
-      : [{ text: element.placeholder || '' }]
+      : [{ role: element.role }]
 
   const clampedIdx = Math.min(selIdx, paragraphs.length - 1)
   const sel = paragraphs[clampedIdx]
@@ -1086,7 +1086,7 @@ function TextProperties({
   }
 
   const addPara = () => {
-    const next = [...paragraphs, { text: '' }]
+    const next = [...paragraphs, { role: 'text' as TextRole }]
     onChange({ paragraphs: next })
     setSelIdx(next.length - 1)
   }
@@ -1098,6 +1098,9 @@ function TextProperties({
     setSelIdx(Math.min(clampedIdx, next.length - 1))
   }
 
+  const paraRoleLabel = (p: TextParagraph) =>
+    ROLE_OPTIONS.find((r) => r.value === (p.role ?? element.role))?.label ?? '—'
+
   const effFontSize = sel.fontSize ?? element.fontSize
   const effWeight = String(sel.fontWeight ?? element.fontWeight ?? 400)
   const effColor = sel.color ?? element.color
@@ -1106,18 +1109,6 @@ function TextProperties({
   return (
     <>
       {/* ── Paramètres globaux du bloc ──────────────────────── */}
-      <div>
-        <label className="block text-[10px] text-ink-600 mb-0.5">Rôle</label>
-        <select
-          className="input text-xs py-1.5"
-          value={element.role}
-          onChange={(e) => onChange({ role: e.target.value as TextRole })}
-        >
-          {ROLE_OPTIONS.map((r) => (
-            <option key={r.value} value={r.value}>{r.label}</option>
-          ))}
-        </select>
-      </div>
       <div>
         <label className="block text-[10px] text-ink-600 mb-0.5">Police</label>
         <FontPicker value={element.fontFamily} onChange={(v) => onChange({ fontFamily: v })} />
@@ -1152,10 +1143,10 @@ function TextProperties({
         </div>
       </div>
 
-      {/* ── Liste des blocs de texte ───────────────────── */}
+      {/* ── Liste des placeholders ────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] uppercase tracking-wide text-ink-600 font-medium">Blocs de texte</span>
+          <span className="text-[10px] uppercase tracking-wide text-ink-600 font-medium">Placeholders</span>
           <button
             onClick={addPara}
             className="text-[10px] px-2 py-0.5 rounded bg-cream-100 hover:bg-cream-200 text-ink-700"
@@ -1174,7 +1165,7 @@ function TextProperties({
                   : 'bg-cream-100 text-ink-700 hover:bg-cream-200'
               }`}
             >
-              <span className="text-[10px] truncate flex-1 mr-1">{p.text || '(vide)'}</span>
+              <span className="text-[10px] truncate flex-1 mr-1">{paraRoleLabel(p)}</span>
               {paragraphs.length > 1 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); removePara(i) }}
@@ -1190,18 +1181,22 @@ function TextProperties({
         </div>
       </div>
 
-      {/* ── Édition du bloc sélectionné ──────────────────── */}
+      {/* ── Édition du placeholder sélectionné ───────────────── */}
       <div className="border-t border-ink-100 pt-3 space-y-2">
         <div className="text-[10px] uppercase tracking-wide text-ink-600 font-medium">
-          Bloc {clampedIdx + 1} / {paragraphs.length}
+          Placeholder {clampedIdx + 1} / {paragraphs.length}
         </div>
         <div>
-          <label className="block text-[10px] text-ink-600 mb-0.5">Texte</label>
-          <textarea
-            className="input text-xs py-1.5 min-h-[56px] resize-none w-full"
-            value={sel.text}
-            onChange={(e) => updatePara({ text: e.target.value })}
-          />
+          <label className="block text-[10px] text-ink-600 mb-0.5">Rôle</label>
+          <select
+            className="input text-xs py-1.5"
+            value={sel.role ?? element.role}
+            onChange={(e) => updatePara({ role: e.target.value as TextRole })}
+          >
+            {ROLE_OPTIONS.map((r) => (
+              <option key={r.value} value={r.value}>{r.label}</option>
+            ))}
+          </select>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <NumberField

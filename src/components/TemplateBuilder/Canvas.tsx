@@ -417,7 +417,7 @@ function resolveParagraphs(element: TextElement): Array<{
       ? element.paragraphs
       : [{ text: element.placeholder || roleLabel(element.role) }]
   return src.map((p) => ({
-    text: p.text,
+    text: p.role ? roleLabel(p.role) : (p.text ?? roleLabel(element.role)),
     fontSize: p.fontSize ?? def.fontSize,
     fontWeight: p.fontWeight ?? def.fontWeight,
     color: p.color ?? def.color,
