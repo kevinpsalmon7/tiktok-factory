@@ -1273,6 +1273,28 @@ function ImageProperties({
   element: ImageElement
   onChange: (patch: Partial<ImageElement>) => void
 }) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload-asset', { method: 'POST', body: fd })
+      if (!res.ok) throw new Error('Upload failed')
+      const { url } = await res.json()
+      onChange({ source: 'asset', assetUrl: url })
+    } catch {
+      alert('Erreur lors de l\'upload.')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
   return (
     <>
       <div>
@@ -1297,12 +1319,29 @@ function ImageProperties({
         </div>
       </div>
       {element.source === 'asset' && (
-        <TextField
-          label="URL de l'image"
-          value={element.assetUrl || ''}
-          onChange={(v) => onChange({ assetUrl: v })}
-          placeholder="https://..."
-        />
+        <>
+          <TextField
+            label="URL de l'image"
+            value={element.assetUrl || ''}
+            onChange={(v) => onChange({ assetUrl: v })}
+            placeholder="https://..."
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="w-full py-1.5 rounded-lg border border-ink-200 hover:bg-cream-100 text-[10px] text-ink-700 flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            <Upload size={11} />
+            {uploading ? 'Upload…' : 'Importer une image'}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFile}
+          />
+        </>
       )}
     </>
   )
