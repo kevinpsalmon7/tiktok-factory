@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const avatarUrl = profile?.avatar_url || user.user_metadata?.avatar_url || null
 
   return (
-    <div className="min-h-screen flex bg-cream-50">
+    <div className="h-screen flex bg-cream-50 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar avatarUrl={avatarUrl} userName={displayName} />

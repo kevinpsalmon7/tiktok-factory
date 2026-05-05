@@ -85,7 +85,8 @@ Each carousel object must have:
 
 IMPORTANT:
 - "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.
-- The "illustration_prompt" is used for generating the background image (Gemini). It must NEVER appear in the final visible text.
+- "illustration_prompt" MUST always be filled in for every slide. NEVER leave it empty or null. Write a short vivid scene description (1–2 sentences) of what to illustrate as the background image — describe the setting, character action, mood. This is sent to an image generator.
+- The "illustration_prompt" must NEVER appear in the final visible text.
 - All text in "text_fields" is what will be rendered on the slide.
 `
 
