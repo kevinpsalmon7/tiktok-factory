@@ -399,6 +399,7 @@ function ElementNode({
 // Resolve element.paragraphs (rich) or fall back to a single legacy paragraph.
 function resolveParagraphs(element: TextElement): Array<{
   text: string
+  fontFamily: string
   fontSize: number
   fontWeight: number | string
   color: string
@@ -406,6 +407,7 @@ function resolveParagraphs(element: TextElement): Array<{
   lineHeight: number
 }> {
   const def = {
+    fontFamily: element.fontFamily,
     fontSize: element.fontSize,
     fontWeight: element.fontWeight || 400,
     color: element.color,
@@ -418,6 +420,7 @@ function resolveParagraphs(element: TextElement): Array<{
       : [{ text: element.placeholder || roleLabel(element.role) }]
   return src.map((p) => ({
     text: p.role ? roleLabel(p.role) : (p.text ?? roleLabel(element.role)),
+    fontFamily: p.fontFamily ?? def.fontFamily,
     fontSize: p.fontSize ?? def.fontSize,
     fontWeight: p.fontWeight ?? def.fontWeight,
     color: p.color ?? def.color,
@@ -447,7 +450,7 @@ function TextNode({
   let curY = bgMode === 'block' ? padding : 0
 
   const items = paras.map((p, i) => {
-    const lines = wrapText(p.text, textW, p.fontSize, element.fontFamily, p.fontWeight)
+    const lines = wrapText(p.text, textW, p.fontSize, p.fontFamily, p.fontWeight)
     const lh = p.lineHeight * p.fontSize
     const y = curY
     curY += lines.length * lh + (i < paras.length - 1 ? PARA_GAP : 0)
@@ -504,7 +507,7 @@ function TextNode({
             x={textX} y={y} width={textW}
             text={p.text}
             fontSize={p.fontSize}
-            fontFamily={element.fontFamily}
+            fontFamily={p.fontFamily}
             fontStyle={String(p.fontWeight || 400).includes('7') ? 'bold' : 'normal'}
             fill={p.color}
             align={p.align}

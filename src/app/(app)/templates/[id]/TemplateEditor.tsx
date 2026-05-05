@@ -64,6 +64,12 @@ type Tab = 'design' | 'style' | 'prompt' | 'gemini' | 'references'
 
 const HISTORY_LIMIT = 10
 
+function roleDefaults(role: TextRole, baseSize: number): Pick<TextParagraph, 'fontSize' | 'fontWeight'> {
+  const sz: Record<TextRole, number> = { title: baseSize, subtitle: Math.round(baseSize * 0.65), text: Math.round(baseSize * 0.45), cta: Math.round(baseSize * 0.55) }
+  const fw: Record<TextRole, number> = { title: 700, subtitle: 600, text: 400, cta: 700 }
+  return { fontSize: sz[role], fontWeight: fw[role] }
+}
+
 const ROLE_OPTIONS: { value: TextRole; label: string }[] = [
   { value: 'title', label: 'Titre' },
   { value: 'subtitle', label: 'Sous-titre' },
@@ -224,7 +230,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         backgroundColor: '#ffffff',
         bgMode: 'inline',
         padding: 8,
-        paragraphs: [{ role: 'title' as TextRole }],
+        paragraphs: [{ role: 'title' as TextRole, fontFamily: 'Inter', ...roleDefaults('title', 54) }],
       } satisfies TextElement
     } else if (type === 'image') {
       newEl = {
@@ -1086,7 +1092,8 @@ function TextProperties({
   }
 
   const addPara = () => {
-    const next = [...paragraphs, { role: 'text' as TextRole }]
+    const newRole = 'text' as TextRole
+    const next = [...paragraphs, { role: newRole, fontFamily: element.fontFamily, ...roleDefaults(newRole, element.fontSize) }]
     onChange({ paragraphs: next })
     setSelIdx(next.length - 1)
   }
@@ -1109,10 +1116,6 @@ function TextProperties({
   return (
     <>
       {/* ── Paramètres globaux du bloc ──────────────────────── */}
-      <div>
-        <label className="block text-[10px] text-ink-600 mb-0.5">Police</label>
-        <FontPicker value={element.fontFamily} onChange={(v) => onChange({ fontFamily: v })} />
-      </div>
       <div className="grid grid-cols-2 gap-2">
         <ColorField
           label="Fond"
@@ -1197,6 +1200,13 @@ function TextProperties({
               <option key={r.value} value={r.value}>{r.label}</option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="block text-[10px] text-ink-600 mb-0.5">Police</label>
+          <FontPicker
+            value={sel.fontFamily ?? element.fontFamily}
+            onChange={(v) => updatePara({ fontFamily: v })}
+          />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <NumberField

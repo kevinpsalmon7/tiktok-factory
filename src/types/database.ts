@@ -139,6 +139,7 @@ export type TextRole = 'title' | 'subtitle' | 'text' | 'cta'
 export type TextParagraph = {
   role?: TextRole
   text?: string
+  fontFamily?: string
   fontSize?: number
   fontWeight?: number | string
   color?: string
