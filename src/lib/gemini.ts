@@ -24,7 +24,7 @@ export async function generateImage({
   styleInstructions,
   illustrationPrompt,
   referenceImages = [],
-  model = 'gemini-2.5-flash-image-preview',
+  model = 'gemini-2.5-flash-image',
 }: GenerateImageArgs): Promise<Buffer> {
   const ai = new GoogleGenAI({ apiKey })
 
@@ -50,6 +50,7 @@ export async function generateImage({
   const response = await ai.models.generateContent({
     model,
     contents: [{ role: 'user', parts }],
+    config: { responseModalities: ['IMAGE'] },
   })
 
   // Find the image part in the response
