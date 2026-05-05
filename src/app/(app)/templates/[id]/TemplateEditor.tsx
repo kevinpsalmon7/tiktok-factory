@@ -1075,6 +1075,8 @@ function TextProperties({
   onChange: (patch: Partial<TextElement>) => void
 }) {
   const [selIdx, setSelIdx] = useState(0)
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
   useEffect(() => { setSelIdx(0) }, [element.id])
 
@@ -1103,6 +1105,15 @@ function TextProperties({
     const next = paragraphs.filter((_, idx) => idx !== i)
     onChange({ paragraphs: next })
     setSelIdx(Math.min(clampedIdx, next.length - 1))
+  }
+
+  const reorderPara = (from: number, to: number) => {
+    if (from === to) return
+    const next = [...paragraphs]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    onChange({ paragraphs: next })
+    setSelIdx(to)
   }
 
   const paraRoleLabel = (p: TextParagraph) =>
@@ -1161,11 +1172,21 @@ function TextProperties({
           {paragraphs.map((p, i) => (
             <div
               key={i}
+              draggable
               onClick={() => setSelIdx(i)}
-              className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer ${
+              onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragIdx(i) }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverIdx(i) }}
+              onDragLeave={() => setDragOverIdx(null)}
+              onDrop={(e) => { e.preventDefault(); if (dragIdx !== null) reorderPara(dragIdx, i); setDragIdx(null); setDragOverIdx(null) }}
+              onDragEnd={() => { setDragIdx(null); setDragOverIdx(null) }}
+              className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-grab active:cursor-grabbing transition-opacity ${
                 clampedIdx === i
                   ? 'bg-ink-900 text-white'
                   : 'bg-cream-100 text-ink-700 hover:bg-cream-200'
+              } ${
+                dragIdx === i ? 'opacity-40' : ''
+              } ${
+                dragOverIdx === i && dragIdx !== i ? 'ring-2 ring-ink-400 ring-inset' : ''
               }`}
             >
               <span className="text-[10px] truncate flex-1 mr-1">{paraRoleLabel(p)}</span>
