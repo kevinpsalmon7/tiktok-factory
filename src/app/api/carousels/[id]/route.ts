@@ -1,6 +1,46 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Fetch slides to clean up storage files
+  const { data: carousel } = await supabase
+    .from('carousels')
+    .select('slides')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single<{ slides: { rendered_url?: string }[] }>()
+
+  if (!carousel) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // List and delete all storage files for this carousel
+  const { data: files } = await supabase.storage
+    .from('carousel-slides')
+    .list(`${user.id}/${id}`)
+
+  if (files && files.length > 0) {
+    const paths = files.map(f => `${user.id}/${id}/${f.name}`)
+    await supabase.storage.from('carousel-slides').remove(paths)
+  }
+
+  // Delete the carousel row
+  const { error } = await supabase
+    .from('carousels')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

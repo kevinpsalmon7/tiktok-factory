@@ -5,6 +5,7 @@ import { ArrowLeft, Download } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { CarouselMeta } from './CarouselMeta'
 import { DownloadZipButton } from './DownloadZipButton'
+import { DeleteCarouselButton } from '@/components/DeleteCarouselButton'
 
 type CarouselRow = {
   id: string
@@ -51,12 +52,15 @@ export default async function CarouselDetailPage({
           />
           <p className="text-xs text-ink-600/60 mt-1">{formatDateTime(carousel.created_at)}</p>
         </div>
-        <DownloadZipButton
-          slides={carousel.slides}
-          title={carousel.title}
-          carouselType={carousel.carousel_type}
-          createdAt={carousel.created_at}
-        />
+        <div className="flex items-center gap-2">
+          <DownloadZipButton
+            slides={carousel.slides}
+            title={carousel.title}
+            carouselType={carousel.carousel_type}
+            createdAt={carousel.created_at}
+          />
+          <DeleteCarouselButton id={carousel.id} variant="button" redirectAfter="/gallery" />
+        </div>
       </div>
 
       {carousel.prompt && (

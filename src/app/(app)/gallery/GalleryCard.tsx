@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Images, FolderDown, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import JSZip from 'jszip'
+import { DeleteCarouselButton } from '@/components/DeleteCarouselButton'
 
 type Slide = { rendered_url?: string }
 
@@ -95,19 +96,22 @@ export function GalleryCard({
         <div className="absolute top-2 left-2">
           <span className={`chip text-[10px] ${statusBadge(status)}`}>{status}</span>
         </div>
-        {renderedSlides.length > 0 && (
-          <button
-            onClick={handleDownload}
-            disabled={downloading}
-            className="absolute top-2 right-2 p-2 bg-white/90 rounded-full hover:bg-white shadow-sm disabled:opacity-60 transition"
-            title="Télécharger"
-          >
-            {downloading
-              ? <Loader2 size={13} className="animate-spin" />
-              : <FolderDown size={13} />
-            }
-          </button>
-        )}
+        <div className="absolute top-2 right-2 flex flex-col gap-1">
+          {renderedSlides.length > 0 && (
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="p-2 bg-white/90 rounded-full hover:bg-white shadow-sm disabled:opacity-60 transition"
+              title="Télécharger"
+            >
+              {downloading
+                ? <Loader2 size={13} className="animate-spin" />
+                : <FolderDown size={13} />
+              }
+            </button>
+          )}
+          <DeleteCarouselButton id={id} redirectAfter={null} />
+        </div>
       </div>
       <Link href={`/gallery/${id}`} className="block mt-2">
         <p className="text-sm text-ink-900 font-medium line-clamp-1">
