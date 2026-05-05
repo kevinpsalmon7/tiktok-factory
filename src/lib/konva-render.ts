@@ -84,50 +84,71 @@ async function addElement(
     const padding = t.padding || 0
     const PARA_GAP = 6
 
-    // Resolve paragraphs — new model uses per-paragraph roles; legacy uses element-level role
+    const textX = t.x + (bgMode === 'block' ? padding : 0)
+    const textW = bgMode === 'block' ? Math.max(10, t.width - padding * 2) : t.width
+
+    // Resolve paragraphs and pre-compute wrapped lines (used for both height calc and rendering)
     const rawParas = t.paragraphs && t.paragraphs.length > 0
       ? t.paragraphs
       : [{ role: t.role as TextRole }]
 
-    const paras = rawParas.map((p) => ({
-      text: slide.text_fields?.[p.role ?? t.role] ?? '',
-      fontFamily: p.fontFamily ?? t.fontFamily,
-      fontSize: p.fontSize ?? t.fontSize,
-      fontWeight: p.fontWeight ?? t.fontWeight,
-      color: p.color ?? t.color,
-      align: (p.align ?? t.align ?? 'left') as 'left' | 'center' | 'right',
-      lineHeight: p.lineHeight ?? t.lineHeight ?? 1.2,
-    }))
+    const resolved = rawParas.map((p) => {
+      const text = slide.text_fields?.[p.role ?? t.role] ?? ''
+      const fontFamily = p.fontFamily ?? t.fontFamily
+      const fontSize = p.fontSize ?? t.fontSize
+      const fontWeight = p.fontWeight ?? t.fontWeight
+      const lineHeight = p.lineHeight ?? t.lineHeight ?? 1.2
+      const lines = text ? wrapText(text, textW, fontSize, fontFamily, fontWeight) : []
+      return {
+        text,
+        fontFamily,
+        fontSize,
+        fontWeight,
+        color: p.color ?? t.color,
+        align: (p.align ?? t.align ?? 'left') as 'left' | 'center' | 'right',
+        lineHeight,
+        lines,
+        lh: lineHeight * fontSize,
+      }
+    })
 
-    // Skip element entirely if all paragraphs are empty
-    if (paras.every((p) => !p.text)) return
+    const activeParas = resolved.filter((p) => p.text)
+    if (activeParas.length === 0) return
 
-    const textX = t.x + (bgMode === 'block' ? padding : 0)
-    const textW = bgMode === 'block' ? Math.max(10, t.width - padding * 2) : t.width
+    // Actual text height (no container padding)
+    const textH = activeParas.reduce(
+      (sum, p, i) => sum + p.lines.length * p.lh + (i < activeParas.length - 1 ? PARA_GAP : 0),
+      0
+    )
+    const contentH = textH + (bgMode === 'block' ? padding * 2 : 0)
 
-    // Block background — one rect for the whole element
+    // Keep the vertical center of the designed box → expand symmetrically
+    const centerY = t.y + t.height / 2
+    const actualH = Math.max(contentH, 1)
+    const actualY = Math.round(centerY - actualH / 2)
+
+    // Block background — sized to actual content
     if (t.backgroundColor && bgMode === 'block') {
       layer.add(new Konva.Rect({
-        ...common,
+        x: t.x,
+        y: actualY,
         width: t.width,
-        height: t.height,
+        height: actualH,
         fill: t.backgroundColor,
+        opacity: t.opacity ?? 1,
+        listening: false,
       }))
     }
 
-    let curY = t.y + (bgMode === 'block' ? padding : 0)
+    let curY = actualY + (bgMode === 'block' ? padding : 0)
 
-    for (let pi = 0; pi < paras.length; pi++) {
-      const p = paras[pi]
-      if (!p.text) continue
-
-      const lines = wrapText(p.text, textW, p.fontSize, p.fontFamily, p.fontWeight)
-      const lh = p.lineHeight * p.fontSize
+    for (let pi = 0; pi < activeParas.length; pi++) {
+      const p = activeParas[pi]
       const isBold = String(p.fontWeight || 400).includes('7')
 
-      // Inline background — one rect per wrapped line, padding = visual margin
+      // Inline background — one rect per wrapped line
       if (t.backgroundColor && bgMode === 'inline') {
-        lines.forEach((line, li) => {
+        p.lines.forEach((line, li) => {
           if (!line.trim()) return
           const w = measureTextWidth(line, p.fontSize, p.fontFamily, p.fontWeight)
           const lx = p.align === 'center' ? (textW - w) / 2
@@ -137,9 +158,9 @@ async function addElement(
           const bgPadV = Math.max(2, padding / 2)
           layer.add(new Konva.Rect({
             x: t.x + bx,
-            y: curY + li * lh - bgPadV,
+            y: curY + li * p.lh - bgPadV,
             width: bw,
-            height: lh + bgPadV * 2,
+            height: p.lh + bgPadV * 2,
             fill: t.backgroundColor,
             cornerRadius: 4,
             opacity: t.opacity ?? 1,
@@ -164,7 +185,7 @@ async function addElement(
         listening: false,
       }))
 
-      curY += lines.length * lh + (pi < paras.length - 1 ? PARA_GAP : 0)
+      curY += p.lines.length * p.lh + (pi < activeParas.length - 1 ? PARA_GAP : 0)
     }
     return
   }
