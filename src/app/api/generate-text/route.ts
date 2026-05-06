@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateCarousels, extractIntent } from '@/lib/anthropic'
 
+// Allow up to 120s — parallel Claude calls for large batches need the headroom
+export const maxDuration = 120
+
 type ProfileRow = {
   master_instructions: string
   avatar_instructions: string
@@ -96,30 +99,31 @@ export async function POST(request: Request) {
         const texts = (c.slides || []).flatMap(s => Object.values(s.text_fields || {})).filter(Boolean)
         return `- ${label}: ${texts.slice(0, 3).join(' / ')}`
       })
-      historyBlock = `RECENT HISTORY (last 48h — do NOT repeat these topics or angles):
-${lines.join('\n')}`
+      historyBlock = `RECENT HISTORY (last 48h — do NOT repeat these topics or angles):\n${lines.join('\n')}`
     }
 
     // Parse natural language: extract exact count + unique per-carousel instructions
     const intent = await extractIntent(userPrompt || '', apiKey)
 
-    // Generate one carousel per specific instruction (each in isolation to avoid topic bleed)
-    const allCarousels: unknown[] = []
-    for (let i = 0; i < intent.count; i++) {
-      const one = await generateCarousels({
-        apiKey,
-        styleGuide: template.style_guide,
-        carouselInstructions: template.carousel_instructions,
-        masterInstructions: profile?.master_instructions,
-        avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
-        userPrompt: intent.perCarousel[i] || userPrompt || '',
-        historyBlock,
-        count: 1,
-        rolesByType,
-      })
-      allCarousels.push(...one)
-    }
+    // Generate all carousels in parallel — avoids sequential latency that
+    // causes Vercel timeouts on batches of 5+ carousels.
+    const results = await Promise.all(
+      Array.from({ length: intent.count }, (_, i) =>
+        generateCarousels({
+          apiKey,
+          styleGuide: template.style_guide,
+          carouselInstructions: template.carousel_instructions,
+          masterInstructions: profile?.master_instructions,
+          avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
+          userPrompt: intent.perCarousel[i] || userPrompt || '',
+          historyBlock,
+          count: 1,
+          rolesByType,
+        })
+      )
+    )
 
+    const allCarousels = results.flat()
     return NextResponse.json({ carousels: allCarousels })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
