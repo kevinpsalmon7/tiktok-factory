@@ -56,9 +56,9 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     setLastCreatedId(carouselId)
     updateLastStep({ status: 'done' })
 
-    // Generate 2 Gemini images
+    // Generate 2 images via OpenAI gpt-image-2
     async function fetchImg(imgPrompt: string, label: string, slideIndex: number, slideType: 'title' | 'content'): Promise<string> {
-      pushStep({ key: `${prefix}img_${label}`, label: `${prefix}Image ${label} (Gemini)`, status: 'running' })
+      pushStep({ key: `${prefix}img_${label}`, label: `${prefix}Image ${label} (ChatGPT)`, status: 'running' })
       try {
         const res = await fetch('/api/generate-image', {
           method: 'POST',
