@@ -13,6 +13,7 @@ type ProfileForm = {
   avatar_instructions: string
   anthropic_api_key: string
   gemini_api_key: string
+  openai_api_key: string
 }
 
 export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }) {
@@ -37,6 +38,7 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
       avatar_instructions: profile.avatar_instructions,
       anthropic_api_key: profile.anthropic_api_key || null,
       gemini_api_key: profile.gemini_api_key || null,
+      openai_api_key: profile.openai_api_key || null,
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from('profiles') as any)
@@ -133,7 +135,17 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
             />
           </div>
           <div>
-            <label className="text-xs text-ink-600 mb-1 block">Google Gemini</label>
+            <label className="text-xs text-ink-600 mb-1 block">OpenAI (gpt-image-2)</label>
+            <input
+              className="input font-mono text-xs"
+              type="password"
+              value={profile.openai_api_key}
+              onChange={(e) => update('openai_api_key', e.target.value)}
+              placeholder="sk-proj-..."
+            />
+          </div>
+          <div>
+            <label className="text-xs text-ink-600 mb-1 block">Google Gemini <span className="text-ink-400">(non utilisé pour l&apos;instant)</span></label>
             <input
               className="input font-mono text-xs"
               type="password"
