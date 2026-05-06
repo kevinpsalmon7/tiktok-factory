@@ -51,7 +51,7 @@ export async function generateImage({
   illustrationPrompt,
   referenceImages = [],
   slideType,
-  model = 'gpt-image-2',
+  model = 'gpt-image-1',
   log,
 }: GenerateImageArgs): Promise<Buffer> {
   const client = new OpenAI({ apiKey })
