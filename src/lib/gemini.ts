@@ -17,52 +17,36 @@ type GenerateImageArgs = {
 }
 
 /**
- * Slide-type-specific composition rules. These are injected just before the
- * scene prompt so they cannot be overridden by what Gemini sees in the
- * reference images. The user's prompts are intentionally vague and poetic;
- * these rules ensure that "vague" is filled in with abstract / atmospheric
- * composition rather than the editorial / narrative scenes that the visual
- * references would otherwise push toward.
+ * Slide-type composition rules. Appended to the system instruction so they
+ * carry the same authority as the user's main style guide.
  */
 function compositionRulesForSlide(slideType?: SlideType): string {
   switch (slideType) {
     case 'title':
-      return `MANDATORY FRAMING — TITLE SLIDE:
-- Tight close-up. Face and shoulders only, OR face only.
-- The figure must occupy the dominant portion of the frame.
-- No full body, no wide shot, no environment storytelling.
-- The background is a flat backdrop, not a scene.
-- Abstract, atmospheric, poetic — never narrative.`
+      return `\n\n## CURRENT SLIDE — TITLE\nFraming: tight close-up. Face only or face and shoulders only. The figure occupies the dominant portion of the frame. No full body. No wide shot. No environmental storytelling.`
     case 'content':
-      return `MANDATORY COMPOSITION — CONTENT SLIDE:
-- Abstract, atmospheric, poetic — a figure and a mood, nothing more.
-- FORBIDDEN: narrative editorial scenes (figure + multiple props + specific environment + storytelling action).
-- FORBIDDEN: scenes that depict a specific situation being lived out (e.g. "a woman looking at her phone in her bedroom with open boxes around her").
-- The figure exists in a quiet, simplified, almost timeless setting. Background is a backdrop, not a stage for action.
-- No specific props beyond what is strictly necessary, no busy environments, no multiple objects telling a story.`
+      return `\n\n## CURRENT SLIDE — CONTENT\nComposition: abstract, atmospheric figure. Quiet, simplified, almost timeless backdrop. No narrative scene with multiple props or specific situations being lived out. A figure and a mood, nothing more.`
     case 'cta':
-      return `MANDATORY COMPOSITION — CTA SLIDE:
-- Same abstract / atmospheric rules as content slides.
-- Clean simple composition, no narrative scene.`
+      return `\n\n## CURRENT SLIDE — CTA\nComposition: same abstract atmospheric rules as content slides. Clean, simple, no narrative.`
     default:
-      return `MANDATORY COMPOSITION:
-- Abstract, atmospheric, poetic. A figure and a mood.
-- FORBIDDEN: narrative editorial scenes with multiple props, specific situations, or storytelling action.`
+      return ''
   }
 }
 
 /**
- * Calls Gemini image generation. Reference images (if any) are passed first as
- * inline image parts, then the style instructions + scene prompt as text.
+ * Calls Gemini image generation following the same architecture as a Gemini
+ * Gem (custom assistant):
  *
- * Architecture note: the user's text prompts are intentionally vague and
- * poetic. Gemini fills in the gaps using whatever it sees first — i.e. the
- * reference images. To prevent the references from pushing every output
- * toward editorial / narrative scenes, we fence them with explicit text:
- *   1. The references define ARTISTIC TECHNIQUE only (technique, texture,
- *      flatness, palette).
- *   2. Slide-type-specific composition rules dictate framing & narrative
- *      restraint, regardless of what the references depict.
+ *   - systemInstruction = the user's style guide + slide-type composition
+ *     rules. This is what gives the style guide high authority, exactly like
+ *     the "Instructions" field of a Gem.
+ *   - User content = reference images + the raw scene prompt. Minimal, no
+ *     meta-fences, no wrapping text — the same payload pattern that works
+ *     when chatting with a Gem.
+ *
+ * Earlier versions piled everything into a single user message, which
+ * diluted the style guide to user-level authority and let the visual
+ * conditioning of the references dominate the output.
  */
 export async function generateImage({
   apiKey,
@@ -74,14 +58,18 @@ export async function generateImage({
 }: GenerateImageArgs): Promise<Buffer> {
   const ai = new GoogleGenAI({ apiKey })
 
-  const parts: Array<
+  // System instruction = persona / style guide. Same role as a Gem's
+  // "Instructions" field.
+  const systemInstructionText = `${styleInstructions}${compositionRulesForSlide(slideType)}`
+
+  // User content = references + raw prompt. Minimal payload.
+  const userParts: Array<
     | { inlineData: { data: string; mimeType: string } }
     | { text: string }
   > = []
 
-  // 1. Reference images first (Gemini conditions on these)
   for (const img of referenceImages) {
-    parts.push({
+    userParts.push({
       inlineData: {
         data: img.data.toString('base64'),
         mimeType: img.mimeType,
@@ -89,32 +77,15 @@ export async function generateImage({
     })
   }
 
-  // 2. Reference-image fence — references = technique only, never content / composition.
-  const referenceNote = referenceImages.length > 0
-    ? `REFERENCE IMAGES — READ THIS BEFORE ANYTHING ELSE:
-The images above are style references. They convey ONLY the artistic TECHNIQUE: brushstroke quality, paint texture, level of graphic flatness, colour rendering, and overall visual medium.
-They are NOT a content template. They do NOT dictate: character attributes (hair colour, eye colour, skin tone, age, clothing), shot framing, scene composition, mood, narrative tone, or any subject matter.
-If the reference images depict narrative scenes with props, environments, or storytelling action, IGNORE that aspect entirely — extract only the painting technique.
-Every content and composition decision comes exclusively from the written instructions below. The reference images have ZERO authority over content or composition.\n\n`
-    : ''
-
-  // 3. Slide-type-specific composition rules (mandatory, non-overridable).
-  const compositionRules = compositionRulesForSlide(slideType)
-
-  const fullText = `${referenceNote}${styleInstructions}
-
-${compositionRules}
-
-Now generate one illustration for this scene:
-${illustrationPrompt}
-
-Apply the artistic technique visible in the reference images (brushstroke, texture, flatness, colour rendering) — and ONLY the technique. The composition, framing, character details, and mood follow the rules above and the scene description; the reference images must not influence them. Return only the image.`
-  parts.push({ text: fullText })
+  userParts.push({ text: illustrationPrompt })
 
   const response = await ai.models.generateContent({
     model,
-    contents: [{ role: 'user', parts }],
-    config: { responseModalities: ['IMAGE'] },
+    contents: [{ role: 'user', parts: userParts }],
+    config: {
+      responseModalities: ['IMAGE'],
+      systemInstruction: systemInstructionText,
+    },
   })
 
   // Find the image part in the response
