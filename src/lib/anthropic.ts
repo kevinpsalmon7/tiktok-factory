@@ -6,6 +6,34 @@ export type CarouselIntent = {
   perCarousel: string[]
 }
 
+/**
+ * Escape literal control characters (newline, carriage-return, tab, etc.)
+ * that appear INSIDE JSON string values — not in structural whitespace.
+ *
+ * Claude occasionally emits raw \n / \t inside "text_fields" copy when
+ * generating large batches, which makes JSON.parse throw
+ * "Bad control character in string literal".
+ */
+function sanitizeJsonStrings(text: string): string {
+  let inString = false
+  let escaped = false
+  let result = ''
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (escaped) { escaped = false; result += ch; continue }
+    if (ch === '\\' && inString) { escaped = true; result += ch; continue }
+    if (ch === '"') { inString = !inString; result += ch; continue }
+    if (inString) {
+      if (ch === '\n') { result += '\\n'; continue }
+      if (ch === '\r') { result += '\\r'; continue }
+      if (ch === '\t') { result += '\\t'; continue }
+      if (ch < ' ') continue // strip other ASCII control chars
+    }
+    result += ch
+  }
+  return result
+}
+
 export async function extractIntent(prompt: string, apiKey: string): Promise<CarouselIntent> {
   if (!prompt?.trim()) return { count: 1, perCarousel: [prompt || ''] }
 
@@ -15,28 +43,14 @@ export async function extractIntent(prompt: string, apiKey: string): Promise<Car
     max_tokens: 512,
     messages: [{
       role: 'user',
-      content: `You parse carousel generation requests. Read the user's message and:
-1. Extract the EXACT number of carousels stated (default 1 if not stated)
-2. Write a specific, UNIQUE instruction for EACH carousel — no two can overlap in topic or angle
-   - Honor any explicit topic the user mentioned for specific carousels
-   - For unspecified carousels, invent complementary angles from the same context
-   - Keep instructions in the user's language
-
-Return ONLY valid JSON: {"count": N, "carousels": ["instruction 1", "instruction 2", ...]}
-The "carousels" array must have EXACTLY N distinct strings.
-
-Examples:
-- "3 carousels dont un sur la famille et un sur le couple" → {"count":3,"carousels":["TDAH et dynamiques familiales","TDAH et vie de couple / mariage","TDAH et gestion des émotions au quotidien"]}
-- "génère 2 carousels sur le burnout" → {"count":2,"carousels":["Reconnaître les signes du burnout","Se reconstruire après un burnout"]}
-
-User request: "${prompt.replace(/"/g, "'")}"` 
+      content: `You parse carousel generation requests. Read the user's message and:\n1. Extract the EXACT number of carousels stated (default 1 if not stated)\n2. Write a specific, UNIQUE instruction for EACH carousel — no two can overlap in topic or angle\n   - Honor any explicit topic the user mentioned for specific carousels\n   - For unspecified carousels, invent complementary angles from the same context\n   - Keep instructions in the user's language\n\nReturn ONLY valid JSON: {"count": N, "carousels": ["instruction 1", "instruction 2", ...]}\nThe "carousels" array must have EXACTLY N distinct strings.\n\nExamples:\n- "3 carousels dont un sur la famille et un sur le couple" → {"count":3,"carousels":["TDAH et dynamiques familiales","TDAH et vie de couple / mariage","TDAH et gestion des émotions au quotidien"]}\n- "génère 2 carousels sur le burnout" → {"count":2,"carousels":["Reconnaître les signes du burnout","Se reconstruire après un burnout"]}\n\nUser request: "${prompt.replace(/"/g, "'")}"`
     }]
   })
 
   try {
     const text = res.content[0].type === 'text' ? res.content[0].text.trim() : ''
     const cleaned = text.replace(/```json|```/g, '').trim()
-    const parsed = JSON.parse(cleaned)
+    const parsed = JSON.parse(sanitizeJsonStrings(cleaned))
     const count = Math.max(1, Math.min(10, parseInt(parsed.count) || 1))
     const carousels: string[] = Array.isArray(parsed.carousels)
       ? parsed.carousels.slice(0, count).map((x: unknown) => String(x || '').trim()).filter(Boolean)
@@ -97,50 +111,7 @@ export async function generateCarousels({
         .join('\n')
     : '  - "title", "content", "cta" → text_fields keys: title, text, cta'
 
-  const prompt = `${masterBlock}${avatarBlock}${historyBl}${userBlock}Tu génères du contenu pour des carousels TikTok/Instagram.
-
-PUNCTUATION RULES — ZERO TOLERANCE:
-- FORBIDDEN: em dash "—". Replace with period or line break.
-- FORBIDDEN: "---" as separator.
-- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).
-
-Generate exactly ${count} carousel(s). Each must follow the style and structure below.
-
---- STYLE GUIDE ---
-${styleGuide}
-
---- CAROUSEL INSTRUCTIONS ---
-${carouselInstructions}
-
---- AVAILABLE SLIDE TYPES ---
-For each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.
-${slideTypesSpec}
-
-Allowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.
-
-Return ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.
-
-Each carousel object must have:
-{
-  "carousel_type": "<brief description>",
-  "image_prompt_title": "<background image prompt for slide 1 — see carousel instructions>",
-  "image_prompt_content": "<background image prompt shared by all other slides — see carousel instructions>",
-  "slides": [
-    {
-      "index": 1,
-      "slide_type": "<one of the allowed values above>",
-      "text_fields": { "<role>": "<copy>", ... }
-    },
-    ...
-  ]
-}
-
-IMPORTANT:
-- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.
-- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty. Follow the image prompt rules in the carousel instructions.
-- There is NO illustration_prompt on individual slides.
-- All text in "text_fields" is what will be rendered on the slide.
-`
+  const prompt = `${masterBlock}${avatarBlock}${historyBl}${userBlock}Tu génères du contenu pour des carousels TikTok/Instagram.\n\nPUNCTUATION RULES — ZERO TOLERANCE:\n- FORBIDDEN: em dash "—". Replace with period or line break.\n- FORBIDDEN: "---" as separator.\n- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).\n\nGenerate exactly ${count} carousel(s). Each must follow the style and structure below.\n\n--- STYLE GUIDE ---\n${styleGuide}\n\n--- CAROUSEL INSTRUCTIONS ---\n${carouselInstructions}\n\n--- AVAILABLE SLIDE TYPES ---\nFor each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.\n${slideTypesSpec}\n\nAllowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.\n\nReturn ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.\n\nEach carousel object must have:\n{\n  "carousel_type": "<brief description>",\n  "image_prompt_title": "<background image prompt for slide 1 — see carousel instructions>",\n  "image_prompt_content": "<background image prompt shared by all other slides — see carousel instructions>",\n  "slides": [\n    {\n      "index": 1,\n      "slide_type": "<one of the allowed values above>",\n      "text_fields": { "<role>": "<copy>", ... }\n    },\n    ...\n  ]\n}\n\nIMPORTANT:\n- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.\n- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty. Follow the image prompt rules in the carousel instructions.\n- There is NO illustration_prompt on individual slides.\n- All text in "text_fields" is what will be rendered on the slide.\n`
 
   const message = await client.messages.create({
     model,
@@ -151,5 +122,5 @@ IMPORTANT:
   const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
   const match = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/)
   const jsonText = match ? match[1] : raw
-  return JSON.parse(jsonText)
+  return JSON.parse(sanitizeJsonStrings(jsonText))
 }
