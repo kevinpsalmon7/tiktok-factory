@@ -56,13 +56,13 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     updateLastStep({ status: 'done' })
 
     // Generate 2 Gemini images
-    async function fetchImg(imgPrompt: string, label: string, slideIndex: number): Promise<string> {
+    async function fetchImg(imgPrompt: string, label: string, slideIndex: number, slideType: 'title' | 'content'): Promise<string> {
       pushStep({ key: `${prefix}img_${label}`, label: `${prefix}Image ${label} (Gemini)`, status: 'running' })
       try {
         const res = await fetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt }),
+          body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt, slideType }),
         })
         if (!res.ok) { const { error } = await res.json(); throw new Error(error) }
         const { url } = await res.json()
@@ -76,8 +76,8 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
 
     let titleBg = ''
     let contentBg = ''
-    if (carousel.image_prompt_title) titleBg = await fetchImg(carousel.image_prompt_title, 'titre', 1)
-    if (carousel.image_prompt_content) contentBg = await fetchImg(carousel.image_prompt_content, 'contenu', 2)
+    if (carousel.image_prompt_title) titleBg = await fetchImg(carousel.image_prompt_title, 'titre', 1, 'title')
+    if (carousel.image_prompt_content) contentBg = await fetchImg(carousel.image_prompt_content, 'contenu', 2, 'content')
 
     const updatedSlides: CarouselSlide[] = slides.map(s => ({
       ...s,

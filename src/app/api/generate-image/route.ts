@@ -12,11 +12,12 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
-  const { templateId, illustrationPrompt, carouselId, slideIndex } = body as {
+  const { templateId, illustrationPrompt, carouselId, slideIndex, slideType } = body as {
     templateId: string
     illustrationPrompt: string
     carouselId: string
     slideIndex: number
+    slideType?: string
   }
 
   if (!templateId || !illustrationPrompt || !carouselId || slideIndex == null) {
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
       styleInstructions: template.gemini_instructions,
       illustrationPrompt,
       referenceImages,
+      slideType,
     })
 
     // Resize to 1080×1920 (9:16)
