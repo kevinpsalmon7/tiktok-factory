@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateCarousels, extractIntent } from '@/lib/anthropic'
+import { createLogger } from '@/lib/logger'
+import { randomUUID } from 'crypto'
 
 // Allow up to 120s — parallel Claude calls for large batches need the headroom
 export const maxDuration = 120
@@ -34,6 +36,12 @@ export async function POST(request: Request) {
   if (!templateId) {
     return NextResponse.json({ error: 'templateId required' }, { status: 400 })
   }
+
+  // One run_id per "Générer" click — links every log entry from this batch.
+  // Front passes runId to /api/generate-image so image logs share the same run.
+  const runId = (body as { runId?: string }).runId || randomUUID()
+  const log = createLogger(supabase, user.id, runId)
+  await log({ step: 'run.start', message: 'generate-text run started', payload: { templateId, userPrompt, runId } })
 
   // Fetch last 2 days of completed carousels for topic avoidance
   const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
@@ -102,8 +110,10 @@ export async function POST(request: Request) {
       historyBlock = `RECENT HISTORY (last 48h — do NOT repeat these topics or angles):\n${lines.join('\n')}`
     }
 
+    await log({ step: 'history.loaded', message: `${recentCarousels?.length || 0} recent carousel(s) loaded for history block`, payload: { historyBlock } })
+
     // Parse natural language: extract exact count + unique per-carousel instructions
-    const intent = await extractIntent(userPrompt || '', apiKey)
+    const intent = await extractIntent(userPrompt || '', apiKey, log)
 
     // Generate all carousels in parallel — avoids sequential latency that
     // causes Vercel timeouts on batches of 5+ carousels.
@@ -119,14 +129,18 @@ export async function POST(request: Request) {
           historyBlock,
           count: 1,
           rolesByType,
+          log,
+          carouselTag: String(i + 1),
         })
       )
     )
 
     const allCarousels = results.flat()
-    return NextResponse.json({ carousels: allCarousels })
+    await log({ step: 'run.text_done', message: `${allCarousels.length} carousel(s) generated, returning to client`, payload: { carouselCount: allCarousels.length } })
+    return NextResponse.json({ carousels: allCarousels, runId })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
+    await log({ step: 'run.error', message: `generate-text failed: ${message}`, level: 'error', payload: { stack: err instanceof Error ? err.stack : null } })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

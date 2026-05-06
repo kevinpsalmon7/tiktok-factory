@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import type { Logger } from './logger'
 
 export type CarouselIntent = {
   count: number
@@ -34,21 +35,25 @@ function sanitizeJsonStrings(text: string): string {
   return result
 }
 
-export async function extractIntent(prompt: string, apiKey: string): Promise<CarouselIntent> {
+export async function extractIntent(prompt: string, apiKey: string, log?: Logger): Promise<CarouselIntent> {
   if (!prompt?.trim()) return { count: 1, perCarousel: [prompt || ''] }
 
   const client = new Anthropic({ apiKey })
+  const userContent = `You parse carousel generation requests. Read the user's message and:\n1. Extract the EXACT number of carousels stated (default 1 if not stated)\n2. Write a specific, UNIQUE instruction for EACH carousel — no two can overlap in topic or angle\n   - Honor any explicit topic the user mentioned for specific carousels\n   - For unspecified carousels, invent complementary angles from the same context\n   - Keep instructions in the user's language\n\nReturn ONLY valid JSON: {"count": N, "carousels": ["instruction 1", "instruction 2", ...]}\nThe "carousels" array must have EXACTLY N distinct strings.\n\nExamples:\n- "3 carousels dont un sur la famille et un sur le couple" → {"count":3,"carousels":["TDAH et dynamiques familiales","TDAH et vie de couple / mariage","TDAH et gestion des émotions au quotidien"]}\n- "génère 2 carousels sur le burnout" → {"count":2,"carousels":["Reconnaître les signes du burnout","Se reconstruire après un burnout"]}\n\nUser request: "${prompt.replace(/"/g, "'")}"`
+
+  await log?.({ step: 'claude.intent.request', message: 'extractIntent: sending prompt to Claude', payload: { model: 'claude-haiku-4-5-20251001', userPrompt: prompt, fullClaudePrompt: userContent } })
+
   const res = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 512,
-    messages: [{
-      role: 'user',
-      content: `You parse carousel generation requests. Read the user's message and:\n1. Extract the EXACT number of carousels stated (default 1 if not stated)\n2. Write a specific, UNIQUE instruction for EACH carousel — no two can overlap in topic or angle\n   - Honor any explicit topic the user mentioned for specific carousels\n   - For unspecified carousels, invent complementary angles from the same context\n   - Keep instructions in the user's language\n\nReturn ONLY valid JSON: {"count": N, "carousels": ["instruction 1", "instruction 2", ...]}\nThe "carousels" array must have EXACTLY N distinct strings.\n\nExamples:\n- "3 carousels dont un sur la famille et un sur le couple" → {"count":3,"carousels":["TDAH et dynamiques familiales","TDAH et vie de couple / mariage","TDAH et gestion des émotions au quotidien"]}\n- "génère 2 carousels sur le burnout" → {"count":2,"carousels":["Reconnaître les signes du burnout","Se reconstruire après un burnout"]}\n\nUser request: "${prompt.replace(/"/g, "'")}"`
-    }]
+    messages: [{ role: 'user', content: userContent }],
   })
 
+  const rawText = res.content[0].type === 'text' ? res.content[0].text : ''
+  await log?.({ step: 'claude.intent.response', message: 'extractIntent: raw Claude response', payload: { raw: rawText } })
+
   try {
-    const text = res.content[0].type === 'text' ? res.content[0].text.trim() : ''
+    const text = rawText.trim()
     const cleaned = text.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(sanitizeJsonStrings(cleaned))
     const count = Math.max(1, Math.min(10, parseInt(parsed.count) || 1))
@@ -56,8 +61,10 @@ export async function extractIntent(prompt: string, apiKey: string): Promise<Car
       ? parsed.carousels.slice(0, count).map((x: unknown) => String(x || '').trim()).filter(Boolean)
       : []
     while (carousels.length < count) carousels.push(prompt)
+    await log?.({ step: 'claude.intent.parsed', message: `intent: ${count} carousel(s)`, payload: { count, perCarousel: carousels } })
     return { count, perCarousel: carousels }
-  } catch {
+  } catch (err) {
+    await log?.({ step: 'claude.intent.parsed', message: 'intent parse failed, falling back to count=1', level: 'warn', payload: { error: err instanceof Error ? err.message : String(err) } })
     return { count: 1, perCarousel: [prompt] }
   }
 }
@@ -74,6 +81,8 @@ type GenerateArgs = {
   model?: string
   // Map of slide type → list of text roles (e.g., { title: ['title'], content: ['title', 'text'], cta: ['title', 'text', 'cta'] })
   rolesByType?: Record<string, string[]>
+  log?: Logger
+  carouselTag?: string
 }
 
 export async function generateCarousels({
@@ -87,6 +96,8 @@ export async function generateCarousels({
   count = 1,
   model = 'claude-haiku-4-5-20251001',
   rolesByType,
+  log,
+  carouselTag = '',
 }: GenerateArgs) {
   const client = new Anthropic({ apiKey })
 
@@ -113,6 +124,26 @@ export async function generateCarousels({
 
   const prompt = `${masterBlock}${avatarBlock}${historyBl}${userBlock}Tu génères du contenu pour des carousels TikTok/Instagram.\n\nPUNCTUATION RULES — ZERO TOLERANCE:\n- FORBIDDEN: em dash "—". Replace with period or line break.\n- FORBIDDEN: "---" as separator.\n- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).\n\nGenerate exactly ${count} carousel(s). Each must follow the style and structure below.\n\n--- STYLE GUIDE ---\n${styleGuide}\n\n--- CAROUSEL INSTRUCTIONS ---\n${carouselInstructions}\n\n--- AVAILABLE SLIDE TYPES ---\nFor each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.\n${slideTypesSpec}\n\nAllowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.\n\nReturn ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.\n\nEach carousel object must have:\n{\n  "carousel_type": "<brief description>",\n  "image_prompt_title": "<background image prompt for slide 1 — see carousel instructions>",\n  "image_prompt_content": "<background image prompt shared by all other slides — see carousel instructions>",\n  "slides": [\n    {\n      "index": 1,\n      "slide_type": "<one of the allowed values above>",\n      "text_fields": { "<role>": "<copy>", ... }\n    },\n    ...\n  ]\n}\n\nIMPORTANT:\n- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.\n- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty. Follow the image prompt rules in the carousel instructions.\n- There is NO illustration_prompt on individual slides.\n- All text in "text_fields" is what will be rendered on the slide.\n`
 
+  await log?.({
+    step: `claude.carousel.request${carouselTag ? '.' + carouselTag : ''}`,
+    message: `generateCarousels: full prompt sent to Claude (${count} carousel(s))`,
+    payload: {
+      model,
+      count,
+      tag: carouselTag,
+      blocks: {
+        masterInstructions,
+        avatarInstructions,
+        styleGuide,
+        carouselInstructions,
+        historyBlock,
+        userPrompt,
+        slideTypesSpec,
+      },
+      fullClaudePrompt: prompt,
+    },
+  })
+
   const message = await client.messages.create({
     model,
     max_tokens: 4096,
@@ -120,7 +151,19 @@ export async function generateCarousels({
   })
 
   const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+  await log?.({
+    step: `claude.carousel.response${carouselTag ? '.' + carouselTag : ''}`,
+    message: 'generateCarousels: raw Claude response',
+    payload: { raw, usage: message.usage },
+  })
+
   const match = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/)
   const jsonText = match ? match[1] : raw
-  return JSON.parse(sanitizeJsonStrings(jsonText))
+  const parsed = JSON.parse(sanitizeJsonStrings(jsonText))
+  await log?.({
+    step: `claude.carousel.parsed${carouselTag ? '.' + carouselTag : ''}`,
+    message: 'generateCarousels: parsed JSON',
+    payload: { parsed },
+  })
+  return parsed
 }

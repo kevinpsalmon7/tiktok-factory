@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateImage } from '@/lib/gemini'
+import { createLogger } from '@/lib/logger'
+import { randomUUID } from 'crypto'
 
 type ProfileRow = { gemini_api_key: string | null }
 type TemplateRow = { gemini_instructions: string }
@@ -12,13 +14,18 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
-  const { templateId, illustrationPrompt, carouselId, slideIndex, slideType } = body as {
+  const { templateId, illustrationPrompt, carouselId, slideIndex, slideType, runId: incomingRunId } = body as {
     templateId: string
     illustrationPrompt: string
     carouselId: string
     slideIndex: number
     slideType?: string
+    runId?: string
   }
+
+  const runId = incomingRunId || randomUUID()
+  const log = createLogger(supabase, user.id, runId, carouselId)
+  await log({ step: 'image.start', message: `image request slide=${slideIndex} type=${slideType || '?'}`, payload: { templateId, carouselId, slideIndex, slideType, illustrationPrompt } })
 
   if (!templateId || !illustrationPrompt || !carouselId || slideIndex == null) {
     return NextResponse.json(
@@ -62,6 +69,7 @@ export async function POST(request: Request) {
     .returns<ReferenceRow[]>()
 
   const referenceImages: { data: Buffer; mimeType: string }[] = []
+  const refPaths: string[] = []
   for (const ref of refs || []) {
     const { data: blob, error } = await supabase.storage
       .from('template-references')
@@ -72,7 +80,9 @@ export async function POST(request: Request) {
       data: Buffer.from(arrayBuf),
       mimeType: blob.type || 'image/jpeg',
     })
+    refPaths.push(ref.storage_path)
   }
+  await log({ step: 'image.refs_loaded', message: `${referenceImages.length} reference image(s) loaded`, payload: { count: referenceImages.length, paths: refPaths } })
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -84,6 +94,7 @@ export async function POST(request: Request) {
       illustrationPrompt,
       referenceImages,
       slideType,
+      log,
     })
 
     // Resize to 1080×1920 (9:16)
@@ -102,10 +113,12 @@ export async function POST(request: Request) {
       })
 
     if (uploadErr) {
+      await log({ step: 'image.upload_error', message: uploadErr.message, level: 'error', payload: { path } })
       return NextResponse.json({ error: uploadErr.message }, { status: 500 })
     }
 
     const { data: urlData } = supabase.storage.from('carousel-slides').getPublicUrl(path)
+    await log({ step: 'image.uploaded', message: 'image uploaded to storage', payload: { path, url: urlData.publicUrl, bytes: imageBytes.length } })
 
     return NextResponse.json({
       url: urlData.publicUrl,
@@ -114,6 +127,7 @@ export async function POST(request: Request) {
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
+    await log({ step: 'image.error', message, level: 'error', payload: { stack: err instanceof Error ? err.stack : null } })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

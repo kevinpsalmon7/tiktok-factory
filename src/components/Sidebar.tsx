@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   History,
+  ScrollText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -20,6 +21,7 @@ const generalItems: NavItem[] = [
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },
   { href: '/gallery', label: 'Galerie', icon: Images },
   { href: '/historique', label: 'Historique', icon: History },
+  { href: '/logs', label: 'Logs', icon: ScrollText },
 ]
 
 const toolsItems: NavItem[] = [

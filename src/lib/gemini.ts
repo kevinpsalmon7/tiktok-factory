@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
+import type { Logger } from './logger'
 
 type ReferenceImage = {
   data: Buffer
@@ -14,6 +15,7 @@ type GenerateImageArgs = {
   referenceImages?: ReferenceImage[]
   slideType?: SlideType
   model?: string
+  log?: Logger
 }
 
 /**
@@ -55,14 +57,12 @@ export async function generateImage({
   referenceImages = [],
   slideType,
   model = 'gemini-2.5-flash-image',
+  log,
 }: GenerateImageArgs): Promise<Buffer> {
   const ai = new GoogleGenAI({ apiKey })
 
-  // System instruction = persona / style guide. Same role as a Gem's
-  // "Instructions" field.
   const systemInstructionText = `${styleInstructions}${compositionRulesForSlide(slideType)}`
 
-  // User content = references + raw prompt. Minimal payload.
   const userParts: Array<
     | { inlineData: { data: string; mimeType: string } }
     | { text: string }
@@ -79,6 +79,21 @@ export async function generateImage({
 
   userParts.push({ text: illustrationPrompt })
 
+  await log?.({
+    step: `gemini.request.${slideType || 'unknown'}`,
+    message: `Gemini generateContent — slide_type=${slideType || 'unknown'}, refs=${referenceImages.length}`,
+    payload: {
+      model,
+      slideType,
+      referenceImageCount: referenceImages.length,
+      referenceMimeTypes: referenceImages.map((r) => r.mimeType),
+      systemInstruction: systemInstructionText,
+      userPromptText: illustrationPrompt,
+      compositionRulesAppended: compositionRulesForSlide(slideType),
+    },
+  })
+
+  const startedAt = Date.now()
   const response = await ai.models.generateContent({
     model,
     contents: [{ role: 'user', parts: userParts }],
@@ -87,6 +102,7 @@ export async function generateImage({
       systemInstruction: systemInstructionText,
     },
   })
+  const elapsedMs = Date.now() - startedAt
 
   // Find the image part in the response
   const candidates = response.candidates || []
@@ -94,10 +110,35 @@ export async function generateImage({
     const candidateParts = candidate.content?.parts || []
     for (const part of candidateParts) {
       if (part.inlineData?.data) {
-        return Buffer.from(part.inlineData.data, 'base64')
+        const buf = Buffer.from(part.inlineData.data, 'base64')
+        await log?.({
+          step: `gemini.response.${slideType || 'unknown'}`,
+          message: `Gemini returned image (${buf.length} bytes, ${elapsedMs} ms)`,
+          payload: {
+            slideType,
+            imageBytes: buf.length,
+            elapsedMs,
+            finishReason: candidate.finishReason,
+          },
+        })
+        return buf
       }
     }
   }
+
+  await log?.({
+    step: `gemini.response.${slideType || 'unknown'}`,
+    message: 'Gemini returned no image data',
+    level: 'error',
+    payload: {
+      slideType,
+      elapsedMs,
+      candidatesCount: candidates.length,
+      finishReasons: candidates.map((c) => c.finishReason),
+      // Capture any text the model returned (e.g. safety blocks)
+      candidateTexts: candidates.map((c) => c.content?.parts?.filter((p) => p.text).map((p) => p.text)),
+    },
+  })
 
   throw new Error('Gemini returned no image data')
 }

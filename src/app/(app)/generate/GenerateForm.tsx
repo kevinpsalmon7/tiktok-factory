@@ -41,6 +41,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     userId: string,
     selectedTemplate: Template,
     prefix: string,
+    runId: string,
   ): Promise<string> {
     const slides: CarouselSlide[] = carousel.slides || []
 
@@ -62,7 +63,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         const res = await fetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt, slideType }),
+          body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt, slideType, runId }),
         })
         if (!res.ok) { const { error } = await res.json(); throw new Error(error) }
         const { url } = await res.json()
@@ -134,7 +135,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         body: JSON.stringify({ templateId, prompt }),
       })
       if (!textRes.ok) { const { error } = await textRes.json(); throw new Error(error || 'Échec génération texte') }
-      const { carousels } = await textRes.json()
+      const { carousels, runId } = await textRes.json()
       updateLastStep({ status: 'done' })
 
       // 2. Load fonts once
@@ -146,7 +147,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       const ids: string[] = []
       for (let i = 0; i < carousels.length; i++) {
         const prefix = carousels.length > 1 ? `Carousel ${i + 1} — ` : ''
-        const id = await processOneCarousel(carousels[i], supabase, user!.id, selectedTemplate, prefix)
+        const id = await processOneCarousel(carousels[i], supabase, user!.id, selectedTemplate, prefix, runId)
         ids.push(id)
         setDoneIds([...ids])
       }
