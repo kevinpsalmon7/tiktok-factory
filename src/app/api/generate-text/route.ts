@@ -5,8 +5,7 @@ import { generateCarousels as generateCarouselsClaude, extractIntent as extractI
 import { createLogger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 
-// Allow up to 120s — parallel Claude calls for large batches need the headroom
-export const maxDuration = 120
+export const maxDuration = 300
 
 type ProfileRow = {
   master_instructions: string
