@@ -92,7 +92,7 @@ export async function generateImage({
     image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
     prompt: fullPrompt,
     size: '1024x1536',
-    quality: 'high',
+    quality: 'low',
     n: 1,
   })
 
