@@ -5,6 +5,23 @@ import { generateCarousels as generateCarouselsClaude } from '@/lib/anthropic'
 import { createLogger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+function buildImageChoicesBlock(): string {
+  const hairColors = ['black', 'brown', 'white', 'blond']
+  const framings = ['close-up', 'really close-up', 'head and shoulders', 'head and chest']
+  const eyes = ['open eyes', 'eyes closed']
+
+  const titleHair = pick(hairColors)
+  const contentHair = pick(hairColors.filter(c => c !== titleHair))
+
+  return `\nRANDOMIZED IMAGE CHOICES — use EXACTLY these values when writing image_prompt_title and image_prompt_content, no substitution allowed:
+- image_prompt_title → framing: "${pick(framings)}", hair: "${titleHair}", eyes: "${pick(eyes)}"
+- image_prompt_content → hair: "${contentHair}", eyes: "${pick(eyes)}"`
+}
+
 export const maxDuration = 300
 
 type ProfileRow = {
@@ -100,13 +117,16 @@ export async function POST(request: Request) {
   }
 
   try {
+    const imageChoices = buildImageChoicesBlock()
+    await log({ step: 'text_one.image_choices', message: 'randomized image choices injected', payload: { imageChoices } })
+
     const carousels = await generateCarousels({
       apiKey,
       styleGuide: template.style_guide,
       carouselInstructions: template.carousel_instructions,
       masterInstructions: profile?.master_instructions,
       avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
-      userPrompt: userPrompt || '',
+      userPrompt: (userPrompt || '') + imageChoices,
       historyBlock,
       count: 1,
       rolesByType,
