@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Sparkles, Loader2, Check, X, ArrowRight } from 'lucide-react'
+import { Sparkles, Loader2, Check, X, ArrowRight, ImageIcon, Layers } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { renderSlideToDataUrl, ensureFontsLoaded } from '@/lib/konva-render'
 import type { CarouselSlide, TemplateLayout } from '@/types/database'
 
 type Template = { id: string; name: string; layout: TemplateLayout }
-type Step = { key: string; label: string; status: 'pending' | 'running' | 'done' | 'error'; error?: string }
+type GlobalStep = { key: string; label: string; status: 'pending' | 'running' | 'done' | 'error'; error?: string }
+type CarouselStatus = 'pending' | 'images' | 'rendering' | 'done' | 'error'
+type CarouselState = { idx: number; label: string; status: CarouselStatus; error?: string; id?: string }
 type Tab = 'creation' | 'processus'
 
 export function GenerateForm({ templates }: { templates: Template[] }) {
@@ -22,9 +24,10 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
   })
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
-  const [steps, setSteps] = useState<Step[]>([])
-  const [lastCreatedId, setLastCreatedId] = useState<string | null>(null)
+  const [globalSteps, setGlobalSteps] = useState<GlobalStep[]>([])
+  const [carouselStates, setCarouselStates] = useState<CarouselState[]>([])
   const [doneIds, setDoneIds] = useState<string[]>([])
+  const doneIdsRef = useRef<string[]>([])
 
   useEffect(() => {
     const p = searchParams.get('prompt')
@@ -33,9 +36,12 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     if (t && templates.find(tmpl => tmpl.id === t)) setTemplateId(t)
   }, [searchParams, templates])
 
-  function pushStep(step: Step) { setSteps(s => [...s, step]) }
-  function updateLastStep(patch: Partial<Step>) {
-    setSteps(s => { const c = [...s]; c[c.length - 1] = { ...c[c.length - 1], ...patch }; return c })
+  function pushGlobal(step: GlobalStep) { setGlobalSteps(s => [...s, step]) }
+  function updateLastGlobal(patch: Partial<GlobalStep>) {
+    setGlobalSteps(s => { const c = [...s]; c[c.length - 1] = { ...c[c.length - 1], ...patch }; return c })
+  }
+  function updateCarousel(idx: number, patch: Partial<CarouselState>) {
+    setCarouselStates(s => s.map(c => c.idx === idx ? { ...c, ...patch } : c))
   }
 
   async function processOneCarousel(
@@ -44,25 +50,23 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     supabase: ReturnType<typeof createClient>,
     userId: string,
     selectedTemplate: Template,
-    prefix: string,
+    idx: number,
     runId: string,
   ): Promise<string> {
     const slides: CarouselSlide[] = carousel.slides || []
 
     // Create DB row
-    pushStep({ key: `${prefix}db`, label: `${prefix}Enregistrement`, status: 'running' })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: newRow, error: insertErr } = await (supabase.from('carousels') as any)
       .insert({ user_id: userId, template_id: templateId, prompt, carousel_type: carousel.carousel_type || '', status: 'generating', slides })
       .select('id').single()
     if (insertErr) throw new Error(insertErr.message)
     const carouselId: string = newRow.id
-    setLastCreatedId(carouselId)
-    updateLastStep({ status: 'done' })
 
-    // Generate 2 images via OpenAI gpt-image-2
-    async function fetchImg(imgPrompt: string, label: string, slideIndex: number, slideType: 'title' | 'content'): Promise<string> {
-      pushStep({ key: `${prefix}img_${label}`, label: `${prefix}Image ${label} (ChatGPT)`, status: 'running' })
+    // Generate both images in PARALLEL
+    updateCarousel(idx, { status: 'images' })
+    async function fetchImg(imgPrompt: string, slideIndex: number, slideType: 'title' | 'content'): Promise<string> {
+      if (!imgPrompt) return ''
       try {
         const res = await fetch('/api/generate-image', {
           method: 'POST',
@@ -71,18 +75,14 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         })
         if (!res.ok) { const { error } = await res.json(); throw new Error(error) }
         const { url } = await res.json()
-        updateLastStep({ status: 'done' })
         return url
-      } catch (err) {
-        updateLastStep({ status: 'error', error: err instanceof Error ? err.message : String(err) })
-        return ''
-      }
+      } catch { return '' }
     }
 
-    let titleBg = ''
-    let contentBg = ''
-    if (carousel.image_prompt_title) titleBg = await fetchImg(carousel.image_prompt_title, 'titre', 1, 'title')
-    if (carousel.image_prompt_content) contentBg = await fetchImg(carousel.image_prompt_content, 'contenu', 2, 'content')
+    const [titleBg, contentBg] = await Promise.all([
+      fetchImg(carousel.image_prompt_title || '', 1, 'title'),
+      fetchImg(carousel.image_prompt_content || '', 2, 'content'),
+    ])
 
     const updatedSlides: CarouselSlide[] = slides.map(s => ({
       ...s,
@@ -90,9 +90,9 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     }))
 
     // Render + upload slides
+    updateCarousel(idx, { status: 'rendering' })
     const renderedSlides: CarouselSlide[] = []
     for (const slide of updatedSlides) {
-      pushStep({ key: `${prefix}render_${slide.index}`, label: `${prefix}Slide ${slide.index}`, status: 'running' })
       try {
         const dataUrl = await renderSlideToDataUrl(selectedTemplate.layout, slide, slide.background_url)
         const uploadRes = await fetch('/api/upload-slide', {
@@ -103,27 +103,29 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         if (!uploadRes.ok) { const { error } = await uploadRes.json(); throw new Error(error) }
         const { url } = await uploadRes.json()
         renderedSlides.push({ ...slide, rendered_url: url })
-        updateLastStep({ status: 'done' })
-      } catch (err) {
-        updateLastStep({ status: 'error', error: err instanceof Error ? err.message : String(err) })
+      } catch {
         renderedSlides.push(slide)
       }
     }
 
     // Finalize
-    pushStep({ key: `${prefix}finalize`, label: `${prefix}Finalisation`, status: 'running' })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase.from('carousels') as any).update({ status: 'completed', slides: renderedSlides }).eq('id', carouselId)
-    updateLastStep({ status: 'done' })
+    updateCarousel(idx, { status: 'done', id: carouselId })
+
+    // Track done IDs
+    doneIdsRef.current = [...doneIdsRef.current, carouselId]
+    setDoneIds([...doneIdsRef.current])
 
     return carouselId
   }
 
   async function handleGenerate() {
     setLoading(true)
-    setSteps([])
-    setLastCreatedId(null)
+    setGlobalSteps([])
+    setCarouselStates([])
     setDoneIds([])
+    doneIdsRef.current = []
     setTab('processus')
 
     const supabase = createClient()
@@ -131,8 +133,8 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     const { data: { user } } = await supabase.auth.getUser()
 
     try {
-      // 1. Generate all texts in one Claude call
-      pushStep({ key: 'text', label: `Analyse et génération des textes (${llm === 'claude' ? 'Claude' : 'Gemini'})`, status: 'running' })
+      // 1. Generate all texts
+      pushGlobal({ key: 'text', label: `Génération des textes (${llm === 'claude' ? 'Claude' : 'Gemini'})`, status: 'running' })
       const textRes = await fetch('/api/generate-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,34 +142,49 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       })
       if (!textRes.ok) { const { error } = await textRes.json(); throw new Error(error || 'Échec génération texte') }
       const { carousels, runId } = await textRes.json()
-      updateLastStep({ status: 'done' })
+      updateLastGlobal({ status: 'done' })
 
-      // 2. Load fonts once
-      pushStep({ key: 'fonts', label: 'Chargement des polices', status: 'running' })
+      // 2. Load fonts
+      pushGlobal({ key: 'fonts', label: 'Chargement des polices', status: 'running' })
       await ensureFontsLoaded(selectedTemplate.layout)
-      updateLastStep({ status: 'done' })
+      updateLastGlobal({ status: 'done' })
 
-      // 3. Process each carousel sequentially
-      const ids: string[] = []
-      for (let i = 0; i < carousels.length; i++) {
-        const prefix = carousels.length > 1 ? `Carousel ${i + 1} — ` : ''
-        const id = await processOneCarousel(carousels[i], supabase, user!.id, selectedTemplate, prefix, runId)
-        ids.push(id)
-        setDoneIds([...ids])
+      // 3. Init carousel states
+      const initial: CarouselState[] = carousels.map((_: unknown, i: number) => ({
+        idx: i,
+        label: carousels[i].carousel_type || `Carousel ${i + 1}`,
+        status: 'pending' as CarouselStatus,
+      }))
+      setCarouselStates(initial)
+
+      // 4. Process ALL carousels in PARALLEL
+      const results = await Promise.allSettled(
+        carousels.map((_: unknown, i: number) =>
+          processOneCarousel(carousels[i], supabase, user!.id, selectedTemplate, i, runId)
+            .catch((err) => {
+              updateCarousel(i, { status: 'error', error: err instanceof Error ? err.message : String(err) })
+              throw err
+            })
+        )
+      )
+
+      const ids = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+        .map(r => r.value)
+
+      if (ids.length > 0) {
+        setTimeout(() => router.push(`/gallery/${ids[ids.length - 1]}`), 600)
       }
-
-      // 4. Navigate to last created
-      setTimeout(() => router.push(`/gallery/${ids[ids.length - 1]}`), 600)
     } catch (err) {
-      updateLastStep({ status: 'error', error: err instanceof Error ? err.message : String(err) })
-      if (lastCreatedId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase.from('carousels') as any).update({ status: 'failed', error_message: String(err) }).eq('id', lastCreatedId)
-      }
+      updateLastGlobal({ status: 'error', error: err instanceof Error ? err.message : String(err) })
     } finally {
       setLoading(false)
     }
   }
+
+  const totalCarousels = carouselStates.length
+  const doneCount = carouselStates.filter(c => c.status === 'done').length
+  const errorCount = carouselStates.filter(c => c.status === 'error').length
 
   return (
     <div className="bg-white rounded-xl2 shadow-soft overflow-hidden">
@@ -184,7 +201,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
             }`}
           >
             {t === 'creation' ? 'Création' : 'Processus'}
-            {t === 'processus' && steps.length > 0 && (
+            {t === 'processus' && totalCarousels > 0 && (
               <span className={`ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] ${loading ? 'bg-pastel-lemon' : 'bg-pastel-mint'}`}>
                 {loading ? '…' : '✓'}
               </span>
@@ -201,7 +218,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
             <div className="flex gap-2">
               {(['gemini', 'claude'] as const).map(l => (
                 <button key={l} onClick={() => { setLlm(l); localStorage.setItem('preferredLlm', l) }}
-                  className={`px-4 py-2 rounded-full text-sm transition capitalize ${llm === l ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
+                  className={`px-4 py-2 rounded-full text-sm transition ${llm === l ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
                   {l === 'gemini' ? 'Gemini' : 'Claude'}
                 </button>
               ))}
@@ -240,12 +257,11 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
 
       {/* Tab: Processus */}
       {tab === 'processus' && (
-        <div className="p-6">
-          {steps.length === 0 ? (
-            <p className="text-sm text-ink-600/60 text-center py-8">Lance une génération pour voir le processus ici.</p>
-          ) : (
-            <ul className="space-y-2">
-              {steps.map((s, idx) => (
+        <div className="p-6 space-y-4">
+          {/* Global steps */}
+          {globalSteps.length > 0 && (
+            <ul className="space-y-1.5">
+              {globalSteps.map((s, idx) => (
                 <li key={`${s.key}_${idx}`} className="flex items-center gap-3 text-sm">
                   <StepIcon status={s.status} />
                   <span className={s.status === 'error' ? 'text-red-600' : 'text-ink-700'}>
@@ -256,12 +272,39 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
               ))}
             </ul>
           )}
+
+          {/* Per-carousel progress */}
+          {carouselStates.length > 0 && (
+            <div className="space-y-2">
+              {totalCarousels > 1 && (
+                <div className="flex items-center justify-between text-xs text-ink-600 mb-1">
+                  <span>{totalCarousels} carousels en parallèle</span>
+                  <span className="font-medium">{doneCount + errorCount}/{totalCarousels}</span>
+                </div>
+              )}
+              {carouselStates.map(c => (
+                <div key={c.idx} className="flex items-center gap-3 py-2 px-3 rounded-xl bg-cream-50">
+                  <CarouselIcon status={c.status} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-ink-800 font-medium truncate">{c.label || `Carousel ${c.idx + 1}`}</p>
+                    <p className="text-xs text-ink-500">{statusLabel(c.status)}</p>
+                  </div>
+                  {c.error && <span className="text-xs text-red-500 truncate max-w-[140px]">{c.error}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {globalSteps.length === 0 && carouselStates.length === 0 && (
+            <p className="text-sm text-ink-600/60 text-center py-8">Lance une génération pour voir le processus ici.</p>
+          )}
+
           {doneIds.length > 0 && !loading && (
-            <div className="mt-6 flex gap-3 flex-wrap">
+            <div className="mt-2 flex gap-3 flex-wrap">
               {doneIds.map((id, i) => (
                 <a key={id} href={`/gallery/${id}`}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-ink-900 text-white rounded-full text-sm hover:bg-ink-800 shadow-card">
-                  Voir le carousel {doneIds.length > 1 ? i + 1 : ''}
+                  Carousel {doneIds.length > 1 ? i + 1 : ''}
                   <ArrowRight size={13} />
                 </a>
               ))}
@@ -273,12 +316,27 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
   )
 }
 
-function StepIcon({ status }: { status: Step['status'] }) {
-  if (status === 'done')
-    return <div className="w-5 h-5 rounded-full bg-pastel-mint flex items-center justify-center"><Check size={12} className="text-ink-900" /></div>
-  if (status === 'error')
-    return <div className="w-5 h-5 rounded-full bg-pastel-pinkDeep flex items-center justify-center"><X size={12} className="text-white" /></div>
-  if (status === 'running')
-    return <Loader2 size={16} className="animate-spin text-ink-600" />
-  return <div className="w-5 h-5 rounded-full border border-cream-200" />
+function statusLabel(status: CarouselStatus): string {
+  switch (status) {
+    case 'pending': return 'En attente…'
+    case 'images': return 'Génération des images…'
+    case 'rendering': return 'Composition des slides…'
+    case 'done': return 'Terminé'
+    case 'error': return 'Erreur'
+  }
+}
+
+function StepIcon({ status }: { status: GlobalStep['status'] }) {
+  if (status === 'done') return <div className="w-5 h-5 rounded-full bg-pastel-mint flex items-center justify-center flex-shrink-0"><Check size={12} className="text-ink-900" /></div>
+  if (status === 'error') return <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0"><X size={12} className="text-red-600" /></div>
+  if (status === 'running') return <Loader2 size={16} className="animate-spin text-ink-600 flex-shrink-0" />
+  return <div className="w-5 h-5 rounded-full border border-cream-200 flex-shrink-0" />
+}
+
+function CarouselIcon({ status }: { status: CarouselStatus }) {
+  if (status === 'done') return <div className="w-7 h-7 rounded-full bg-pastel-mint flex items-center justify-center flex-shrink-0"><Check size={13} className="text-ink-900" /></div>
+  if (status === 'error') return <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0"><X size={13} className="text-red-600" /></div>
+  if (status === 'images') return <div className="w-7 h-7 rounded-full bg-pastel-lemon flex items-center justify-center flex-shrink-0"><ImageIcon size={13} className="text-ink-900 animate-pulse" /></div>
+  if (status === 'rendering') return <div className="w-7 h-7 rounded-full bg-pastel-lavender flex items-center justify-center flex-shrink-0"><Layers size={13} className="text-ink-900 animate-pulse" /></div>
+  return <div className="w-7 h-7 rounded-full border-2 border-cream-200 flex-shrink-0" />
 }
