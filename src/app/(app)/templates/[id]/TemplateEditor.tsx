@@ -1148,6 +1148,28 @@ function TextProperties({
         </div>
       </div>
 
+      <div>
+        <label className="block text-[10px] text-ink-600 mb-0.5">Ancre (étirement)</label>
+        <div className="flex gap-1">
+          {([
+            { value: 'down', label: '↓ bas', title: 'Le bord haut est fixe — la box grandit vers le bas' },
+            { value: 'both', label: '↕ centre', title: 'Le centre est fixe — la box grandit des deux côtés' },
+            { value: 'up',   label: '↑ haut', title: 'Le bord bas est fixe — la box grandit vers le haut' },
+          ] as const).map(({ value, label, title }) => (
+            <button
+              key={value}
+              onClick={() => onChange({ growDirection: value })}
+              className={`flex-1 py-1.5 rounded-lg text-[10px] ${
+                (element.growDirection ?? 'both') === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
+              }`}
+              title={title}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── Liste des placeholders ────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-1">

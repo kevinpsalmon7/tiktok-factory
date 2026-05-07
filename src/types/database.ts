@@ -178,6 +178,11 @@ export interface TextElement extends BaseElement {
   lineHeight?: number
   placeholder?: string // shown in builder preview (legacy — use paragraphs instead)
   paragraphs?: TextParagraph[] // per-paragraph rich styling
+  // Which edge is the anchor when the box auto-resizes to fit content:
+  // 'down'  → top edge fixed, box grows downward
+  // 'up'    → bottom edge fixed, box grows upward
+  // 'both'  → center fixed, box grows equally up and down (default)
+  growDirection?: 'down' | 'up' | 'both'
 }
 
 export interface ImageElement extends BaseElement {

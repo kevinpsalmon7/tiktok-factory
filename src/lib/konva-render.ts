@@ -122,10 +122,17 @@ async function addElement(
     )
     const contentH = textH + (bgMode === 'block' ? padding * 2 : 0)
 
-    // Keep the vertical center of the designed box → expand symmetrically
-    const centerY = t.y + t.height / 2
+    // Compute actualY based on growDirection (anchor point):
+    // 'down'  → top edge fixed (default anchor top)
+    // 'up'    → bottom edge fixed (anchor bottom)
+    // 'both'  → center fixed, grows equally up and down
     const actualH = Math.max(contentH, 1)
-    const actualY = Math.round(centerY - actualH / 2)
+    const grow = t.growDirection ?? 'both'
+    const actualY = grow === 'down'
+      ? t.y
+      : grow === 'up'
+        ? Math.round(t.y + t.height - actualH)
+        : Math.round(t.y + t.height / 2 - actualH / 2)
 
     // Block background — sized to actual content
     if (t.backgroundColor && bgMode === 'block') {
