@@ -4,8 +4,8 @@ import { generateImage } from '@/lib/openai'
 import { createLogger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 
-// Gemini image generation can take up to 60s; allow Vercel headroom.
-export const maxDuration = 120
+// gpt-image-2 can take 60-180s; set to Vercel Pro max.
+export const maxDuration = 300
 
 type ProfileRow = { openai_api_key: string | null }
 type TemplateRow = { gemini_instructions: string }
