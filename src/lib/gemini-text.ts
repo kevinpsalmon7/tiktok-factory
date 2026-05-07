@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
+import { jsonrepair } from 'jsonrepair'
 import type { Logger } from './logger'
 
 export type CarouselIntent = {
@@ -61,7 +62,7 @@ User request: "${prompt.replace(/"/g, "'")}"`
 
   try {
     const cleaned = rawText.trim().replace(/```json|```/g, '').trim()
-    const parsed = JSON.parse(sanitizeJsonStrings(cleaned))
+    const parsed = JSON.parse(jsonrepair(sanitizeJsonStrings(cleaned)))
     const count = Math.max(1, Math.min(10, parseInt(parsed.count) || 1))
     const carousels: string[] = Array.isArray(parsed.carousels)
       ? parsed.carousels.slice(0, count).map((x: unknown) => String(x || '').trim()).filter(Boolean)
@@ -202,7 +203,7 @@ IMPORTANT:
 
   const match = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/)
   const jsonText = match ? match[1] : raw
-  const parsed = JSON.parse(sanitizeJsonStrings(jsonText))
+  const parsed = JSON.parse(jsonrepair(sanitizeJsonStrings(jsonText)))
   await log?.({
     step: `gemini.carousel.parsed${carouselTag ? '.' + carouselTag : ''}`,
     message: 'generateCarousels: parsed JSON',
