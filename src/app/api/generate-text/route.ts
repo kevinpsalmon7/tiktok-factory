@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { generateCarousels, extractIntent } from '@/lib/gemini-text'
+import { generateCarousels as generateCarouselsGemini, extractIntent as extractIntentGemini } from '@/lib/gemini-text'
+import { generateCarousels as generateCarouselsClaude, extractIntent as extractIntentClaude } from '@/lib/anthropic'
 import { createLogger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 
@@ -11,6 +12,7 @@ type ProfileRow = {
   master_instructions: string
   avatar_instructions: string
   gemini_api_key: string | null
+  anthropic_api_key: string | null
 }
 
 import type { TemplateLayout, TextElement } from '@/types/database'
@@ -28,10 +30,14 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
-  const { templateId, prompt: userPrompt } = body as {
+  const { templateId, prompt: userPrompt, llm = 'gemini' } = body as {
     templateId: string
     prompt?: string
+    llm?: 'gemini' | 'claude'
   }
+
+  const generateCarousels = llm === 'claude' ? generateCarouselsClaude : generateCarouselsGemini
+  const extractIntent = llm === 'claude' ? extractIntentClaude : extractIntentGemini
 
   if (!templateId) {
     return NextResponse.json({ error: 'templateId required' }, { status: 400 })
@@ -56,7 +62,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('master_instructions, avatar_instructions, gemini_api_key')
+    .select('master_instructions, avatar_instructions, gemini_api_key, anthropic_api_key')
     .eq('id', user.id)
     .single<ProfileRow>()
 
@@ -71,10 +77,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Template not found' }, { status: 404 })
   }
 
-  const apiKey = profile?.gemini_api_key || process.env.GEMINI_API_KEY
+  const apiKey = llm === 'claude'
+    ? (profile?.anthropic_api_key || process.env.ANTHROPIC_API_KEY)
+    : (profile?.gemini_api_key || process.env.GEMINI_API_KEY)
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Clé API Gemini manquante. Renseignez-la dans Paramètres.' },
+      { error: `Clé API ${llm === 'claude' ? 'Anthropic' : 'Gemini'} manquante. Renseignez-la dans Paramètres.` },
       { status: 400 }
     )
   }

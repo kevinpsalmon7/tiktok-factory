@@ -1,19 +1,7 @@
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { Images, Sparkles } from 'lucide-react'
+import { Images } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
-import { GalleryCard } from './GalleryCard'
-
-type CarouselRow = {
-  id: string
-  title: string
-  prompt: string
-  carousel_type: string
-  status: string
-  slides: { rendered_url?: string }[]
-  created_at: string
-}
-
+import { GalleryGrid } from './GalleryGrid'
 
 export default async function GalleryPage() {
   const supabase = await createClient()
@@ -25,26 +13,17 @@ export default async function GalleryPage() {
     .select('id, title, prompt, carousel_type, status, slides, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-    .returns<CarouselRow[]>()
+    .returns<{ id: string; title: string; prompt: string; carousel_type: string; status: string; slides: { rendered_url?: string }[]; created_at: string }[]>()
 
   const hasItems = carousels && carousels.length > 0
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-4xl font-semibold text-ink-900">Galerie</h1>
-          <p className="text-ink-600 mt-2">
-            Tous vos carousels générés, du plus récent au plus ancien.
-          </p>
-        </div>
-        <Link
-          href="/generate"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-ink-900 text-white rounded-full text-sm font-medium hover:bg-ink-800 shadow-card"
-        >
-          <Sparkles size={14} />
-          Nouveau
-        </Link>
+      <div>
+        <h1 className="font-display text-4xl font-semibold text-ink-900">Galerie</h1>
+        <p className="text-ink-600 mt-2">
+          Tous vos carousels générés, du plus récent au plus ancien.
+        </p>
       </div>
 
       {!hasItems ? (
@@ -60,23 +39,13 @@ export default async function GalleryPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {carousels.map((c) => (
-            <GalleryCard
-              key={c.id}
-              id={c.id}
-              title={c.title}
-              carouselType={c.carousel_type}
-              prompt={c.prompt}
-              status={c.status}
-              slides={c.slides}
-              createdAt={c.created_at}
-              formattedDate={formatDateTime(c.created_at)}
-            />
-          ))}
-        </div>
+        <GalleryGrid
+          carousels={(carousels ?? []).map(c => ({
+            ...c,
+            formattedDate: formatDateTime(c.created_at),
+          }))}
+        />
       )}
     </div>
   )
 }
-

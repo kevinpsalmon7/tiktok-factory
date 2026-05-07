@@ -29,6 +29,9 @@ export function GalleryCard({
   slides,
   createdAt,
   formattedDate,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
 }: {
   id: string
   title: string
@@ -38,6 +41,9 @@ export function GalleryCard({
   slides: Slide[]
   createdAt: string
   formattedDate: string
+  selectionMode?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
 }) {
   const [downloading, setDownloading] = useState(false)
 
@@ -78,6 +84,35 @@ export function GalleryCard({
       case 'failed': return 'bg-pastel-pinkDeep text-white'
       default: return 'bg-white text-ink-700'
     }
+  }
+
+  if (selectionMode) {
+    return (
+      <div
+        className="group block cursor-pointer"
+        onClick={() => onToggleSelect?.(id)}
+      >
+        <div className={`aspect-[9/16] rounded-xl2 overflow-hidden bg-cream-100 relative shadow-soft transition ${selected ? 'ring-4 ring-ink-900' : 'hover:shadow-card'}`}>
+          {hasImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={slides[0].rendered_url} alt={prompt} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-ink-600/40">
+              <Images size={32} />
+            </div>
+          )}
+          {selected && (
+            <div className="absolute inset-0 bg-ink-900/30 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-ink-900 flex items-center justify-center text-white text-lg font-bold">✓</div>
+            </div>
+          )}
+        </div>
+        <p className="text-sm text-ink-900 font-medium line-clamp-1 mt-2">
+          {title || carouselType || prompt || 'Sans titre'}
+        </p>
+        <p className="text-xs text-ink-600/60">{formattedDate}</p>
+      </div>
+    )
   }
 
   return (

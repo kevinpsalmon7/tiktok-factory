@@ -16,6 +16,10 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
   const searchParams = useSearchParams()
   const [tab, setTab] = useState<Tab>('creation')
   const [templateId, setTemplateId] = useState(templates[0]?.id || '')
+  const [llm, setLlm] = useState<'gemini' | 'claude'>(() => {
+    if (typeof window !== 'undefined') return (localStorage.getItem('preferredLlm') as 'gemini' | 'claude') || 'gemini'
+    return 'gemini'
+  })
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
@@ -128,11 +132,11 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
 
     try {
       // 1. Generate all texts in one Claude call
-      pushStep({ key: 'text', label: 'Analyse et génération des textes (Claude)', status: 'running' })
+      pushStep({ key: 'text', label: `Analyse et génération des textes (${llm === 'claude' ? 'Claude' : 'Gemini'})`, status: 'running' })
       const textRes = await fetch('/api/generate-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, prompt }),
+        body: JSON.stringify({ templateId, prompt, llm }),
       })
       if (!textRes.ok) { const { error } = await textRes.json(); throw new Error(error || 'Échec génération texte') }
       const { carousels, runId } = await textRes.json()
@@ -192,6 +196,17 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       {/* Tab: Création */}
       {tab === 'creation' && (
         <div className="p-6 space-y-5">
+          <div>
+            <label className="block text-xs text-ink-600 mb-2">LLM</label>
+            <div className="flex gap-2">
+              {(['gemini', 'claude'] as const).map(l => (
+                <button key={l} onClick={() => { setLlm(l); localStorage.setItem('preferredLlm', l) }}
+                  className={`px-4 py-2 rounded-full text-sm transition capitalize ${llm === l ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
+                  {l === 'gemini' ? 'Gemini' : 'Claude'}
+                </button>
+              ))}
+            </div>
+          </div>
           <div>
             <label className="block text-xs text-ink-600 mb-2">Template</label>
             <div className="flex gap-2 flex-wrap">
