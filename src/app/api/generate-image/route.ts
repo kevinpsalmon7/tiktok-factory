@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { generateImage } from '@/lib/gemini'
+import { generateImage } from '@/lib/openai'
 import { createLogger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 
 // Gemini image generation can take up to 60s; allow Vercel headroom.
 export const maxDuration = 120
 
-type ProfileRow = { gemini_api_key: string | null }
+type ProfileRow = { openai_api_key: string | null }
 type TemplateRow = { gemini_instructions: string }
 type ReferenceRow = { storage_path: string }
 
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('gemini_api_key')
+    .select('openai_api_key')
     .eq('id', user.id)
     .single<ProfileRow>()
 
@@ -54,10 +54,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Template not found' }, { status: 404 })
   }
 
-  const apiKey = profile?.gemini_api_key || process.env.GEMINI_API_KEY
+  const apiKey = profile?.openai_api_key || process.env.OPENAI_API_KEY
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Clé API Gemini manquante. Renseignez-la dans Paramètres.' },
+      { error: 'Clé API OpenAI manquante. Renseignez-la dans Paramètres.' },
       { status: 400 }
     )
   }
