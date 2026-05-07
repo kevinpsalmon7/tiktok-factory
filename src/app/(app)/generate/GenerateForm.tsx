@@ -2,16 +2,54 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Sparkles, Loader2, Check, X, ArrowRight, ImageIcon, Layers } from 'lucide-react'
+import { Sparkles, Loader2, Check, X, ArrowRight, StopCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { renderSlideToDataUrl, ensureFontsLoaded } from '@/lib/konva-render'
 import type { CarouselSlide, TemplateLayout } from '@/types/database'
 
 type Template = { id: string; name: string; layout: TemplateLayout }
-type GlobalStep = { key: string; label: string; status: 'pending' | 'running' | 'done' | 'error'; error?: string }
-type CarouselStatus = 'pending' | 'images' | 'rendering' | 'done' | 'error'
-type CarouselState = { idx: number; label: string; status: CarouselStatus; error?: string; id?: string }
+type CarouselStatus =
+  | 'queued'        // waiting in queue (e.g. retry round)
+  | 'text'          // generating text
+  | 'images'        // generating images
+  | 'rendering'     // rendering slides
+  | 'done'
+  | 'error'         // failed (final, after retries exhausted)
+  | 'cancelled'     // user-cancelled
+
+type CarouselState = {
+  idx: number
+  label: string
+  status: CarouselStatus
+  attempts: number
+  error?: string
+  id?: string
+  prompt: string
+  abortController?: AbortController
+}
 type Tab = 'creation' | 'processus'
+
+const MAX_ATTEMPTS = 3
+
+function isRetryableError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === 'AbortError') return false
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase()
+    // Permanent errors — no retry
+    if (msg.includes('unauthorized')) return false
+    if (msg.includes('clé api')) return false
+    if (msg.includes('template not found')) return false
+    if (msg.includes('cancelled')) return false
+    // Vercel function timeouts and network errors
+    if (msg.includes('timeout')) return true
+    if (msg.includes('failed to fetch')) return true
+    if (msg.includes('network')) return true
+    if (msg.includes('rate limit') || msg.includes('429')) return true
+    if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('504')) return true
+    return true // default: retry unknown errors
+  }
+  return true
+}
 
 export function GenerateForm({ templates }: { templates: Template[] }) {
   const router = useRouter()
@@ -24,10 +62,11 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
   })
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
-  const [globalSteps, setGlobalSteps] = useState<GlobalStep[]>([])
+  const [globalError, setGlobalError] = useState<string | null>(null)
   const [carouselStates, setCarouselStates] = useState<CarouselState[]>([])
-  const [doneIds, setDoneIds] = useState<string[]>([])
-  const doneIdsRef = useRef<string[]>([])
+  const carouselStatesRef = useRef<CarouselState[]>([])
+  const stoppedRef = useRef<Set<number>>(new Set())
+  const stopAllRef = useRef(false)
 
   useEffect(() => {
     const p = searchParams.get('prompt')
@@ -36,47 +75,89 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     if (t && templates.find(tmpl => tmpl.id === t)) setTemplateId(t)
   }, [searchParams, templates])
 
-  function pushGlobal(step: GlobalStep) { setGlobalSteps(s => [...s, step]) }
-  function updateLastGlobal(patch: Partial<GlobalStep>) {
-    setGlobalSteps(s => { const c = [...s]; c[c.length - 1] = { ...c[c.length - 1], ...patch }; return c })
-  }
   function updateCarousel(idx: number, patch: Partial<CarouselState>) {
-    setCarouselStates(s => s.map(c => c.idx === idx ? { ...c, ...patch } : c))
+    carouselStatesRef.current = carouselStatesRef.current.map(c =>
+      c.idx === idx ? { ...c, ...patch } : c
+    )
+    setCarouselStates([...carouselStatesRef.current])
   }
 
+  /**
+   * Process a single carousel end-to-end: text → images → rendering.
+   * Throws on failure so the retry orchestrator can pick it up.
+   */
   async function processOneCarousel(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    carousel: any,
-    supabase: ReturnType<typeof createClient>,
-    userId: string,
-    selectedTemplate: Template,
     idx: number,
     runId: string,
+    historyBlock: string,
+    selectedTemplate: Template,
+    userId: string,
+    supabase: ReturnType<typeof createClient>,
   ): Promise<string> {
-    const slides: CarouselSlide[] = carousel.slides || []
+    const state = carouselStatesRef.current.find(c => c.idx === idx)!
+    const ac = new AbortController()
+    updateCarousel(idx, { abortController: ac, status: 'text', error: undefined })
 
-    // Create DB row
+    if (stoppedRef.current.has(idx) || stopAllRef.current) {
+      throw new Error('cancelled')
+    }
+
+    // 1. Generate text for this single carousel
+    const textRes = await fetch('/api/generate-text-one', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        templateId,
+        prompt: state.prompt,
+        llm,
+        runId,
+        historyBlock,
+        carouselTag: String(idx + 1),
+      }),
+      signal: ac.signal,
+    })
+    if (!textRes.ok) {
+      const errBody = await textRes.json().catch(() => ({ error: `HTTP ${textRes.status}` }))
+      throw new Error(errBody.error || `HTTP ${textRes.status}`)
+    }
+    const { carousel } = await textRes.json()
+    const slides: CarouselSlide[] = carousel.slides || []
+    const label = carousel.carousel_type || `Carousel ${idx + 1}`
+    updateCarousel(idx, { label })
+
+    if (stoppedRef.current.has(idx) || stopAllRef.current) throw new Error('cancelled')
+
+    // 2. Create DB row (so cancellation can clean up storage too)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: newRow, error: insertErr } = await (supabase.from('carousels') as any)
-      .insert({ user_id: userId, template_id: templateId, prompt, carousel_type: carousel.carousel_type || '', status: 'generating', slides })
+      .insert({
+        user_id: userId,
+        template_id: templateId,
+        prompt,
+        carousel_type: carousel.carousel_type || '',
+        status: 'generating',
+        slides,
+      })
       .select('id').single()
     if (insertErr) throw new Error(insertErr.message)
     const carouselId: string = newRow.id
+    updateCarousel(idx, { id: carouselId, status: 'images' })
 
-    // Generate both images in PARALLEL
-    updateCarousel(idx, { status: 'images' })
+    // 3. Generate both images in parallel
     async function fetchImg(imgPrompt: string, slideIndex: number, slideType: 'title' | 'content'): Promise<string> {
       if (!imgPrompt) return ''
-      try {
-        const res = await fetch('/api/generate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt, slideType, runId }),
-        })
-        if (!res.ok) { const { error } = await res.json(); throw new Error(error) }
-        const { url } = await res.json()
-        return url
-      } catch { return '' }
+      const res = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt, slideType, runId }),
+        signal: ac.signal,
+      })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        throw new Error(errBody.error || `HTTP ${res.status}`)
+      }
+      const { url } = await res.json()
+      return url
     }
 
     const [titleBg, contentBg] = await Promise.all([
@@ -84,48 +165,77 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       fetchImg(carousel.image_prompt_content || '', 2, 'content'),
     ])
 
+    if (stoppedRef.current.has(idx) || stopAllRef.current) throw new Error('cancelled')
+
     const updatedSlides: CarouselSlide[] = slides.map(s => ({
       ...s,
       background_url: s.index === 1 ? (titleBg || undefined) : (contentBg || undefined),
     }))
 
-    // Render + upload slides
+    // 4. Render + upload slides
     updateCarousel(idx, { status: 'rendering' })
     const renderedSlides: CarouselSlide[] = []
     for (const slide of updatedSlides) {
-      try {
-        const dataUrl = await renderSlideToDataUrl(selectedTemplate.layout, slide, slide.background_url)
-        const uploadRes = await fetch('/api/upload-slide', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ carouselId, slideIndex: slide.index, dataUrl }),
-        })
-        if (!uploadRes.ok) { const { error } = await uploadRes.json(); throw new Error(error) }
-        const { url } = await uploadRes.json()
-        renderedSlides.push({ ...slide, rendered_url: url })
-      } catch {
-        renderedSlides.push(slide)
+      if (stoppedRef.current.has(idx) || stopAllRef.current) throw new Error('cancelled')
+      const dataUrl = await renderSlideToDataUrl(selectedTemplate.layout, slide, slide.background_url)
+      const uploadRes = await fetch('/api/upload-slide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carouselId, slideIndex: slide.index, dataUrl }),
+        signal: ac.signal,
+      })
+      if (!uploadRes.ok) {
+        const errBody = await uploadRes.json().catch(() => ({ error: `HTTP ${uploadRes.status}` }))
+        throw new Error(errBody.error || `HTTP ${uploadRes.status}`)
       }
+      const { url } = await uploadRes.json()
+      renderedSlides.push({ ...slide, rendered_url: url })
     }
 
-    // Finalize
+    // 5. Finalize
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('carousels') as any).update({ status: 'completed', slides: renderedSlides }).eq('id', carouselId)
-    updateCarousel(idx, { status: 'done', id: carouselId })
-
-    // Track done IDs
-    doneIdsRef.current = [...doneIdsRef.current, carouselId]
-    setDoneIds([...doneIdsRef.current])
-
+    await (supabase.from('carousels') as any)
+      .update({ status: 'completed', slides: renderedSlides })
+      .eq('id', carouselId)
+    updateCarousel(idx, { status: 'done' })
     return carouselId
+  }
+
+  /**
+   * Cancel a carousel: abort in-flight requests + delete DB row + storage cleanup.
+   */
+  async function cancelOne(idx: number) {
+    stoppedRef.current.add(idx)
+    const state = carouselStatesRef.current.find(c => c.idx === idx)
+    if (!state) return
+    state.abortController?.abort()
+    if (state.id) {
+      try {
+        await fetch(`/api/carousels/${state.id}`, { method: 'DELETE' })
+      } catch { /* ignore */ }
+    }
+    updateCarousel(idx, { status: 'cancelled', error: undefined })
+  }
+
+  /**
+   * Cancel ALL carousels currently in progress.
+   */
+  async function cancelAll() {
+    stopAllRef.current = true
+    const toCancel = carouselStatesRef.current.filter(
+      c => c.status !== 'done' && c.status !== 'error' && c.status !== 'cancelled'
+    )
+    await Promise.all(toCancel.map(c => cancelOne(c.idx)))
+    setLoading(false)
   }
 
   async function handleGenerate() {
     setLoading(true)
-    setGlobalSteps([])
+    setGlobalError(null)
     setCarouselStates([])
-    setDoneIds([])
-    doneIdsRef.current = []
+    carouselStatesRef.current = []
+    stoppedRef.current = new Set()
+    stopAllRef.current = false
     setTab('processus')
 
     const supabase = createClient()
@@ -133,50 +243,103 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     const { data: { user } } = await supabase.auth.getUser()
 
     try {
-      // 1. Generate all texts
-      pushGlobal({ key: 'text', label: `Génération des textes (${llm === 'claude' ? 'Claude' : 'Gemini'})`, status: 'running' })
-      const textRes = await fetch('/api/generate-text', {
+      // Phase 1: extract intent (count + per-carousel prompts)
+      const intentRes = await fetch('/api/extract-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, prompt, llm }),
+        body: JSON.stringify({ prompt, llm }),
       })
-      if (!textRes.ok) { const { error } = await textRes.json(); throw new Error(error || 'Échec génération texte') }
-      const { carousels, runId } = await textRes.json()
-      updateLastGlobal({ status: 'done' })
+      if (!intentRes.ok) {
+        const errBody = await intentRes.json().catch(() => ({ error: `HTTP ${intentRes.status}` }))
+        throw new Error(errBody.error || `HTTP ${intentRes.status}`)
+      }
+      const { count, perCarousel, runId, historyBlock } = await intentRes.json()
 
-      // 2. Load fonts
-      pushGlobal({ key: 'fonts', label: 'Chargement des polices', status: 'running' })
-      await ensureFontsLoaded(selectedTemplate.layout)
-      updateLastGlobal({ status: 'done' })
+      // Phase 2: load fonts (in parallel with showing the cards)
+      const fontsPromise = ensureFontsLoaded(selectedTemplate.layout)
 
-      // 3. Init carousel states
-      const initial: CarouselState[] = carousels.map((_: unknown, i: number) => ({
+      // Phase 3: init N placeholder cards
+      const initial: CarouselState[] = Array.from({ length: count }, (_, i) => ({
         idx: i,
-        label: carousels[i].carousel_type || `Carousel ${i + 1}`,
-        status: 'pending' as CarouselStatus,
+        label: `Carousel ${i + 1}`,
+        status: 'queued' as CarouselStatus,
+        attempts: 0,
+        prompt: perCarousel[i] || prompt,
       }))
-      setCarouselStates(initial)
+      carouselStatesRef.current = initial
+      setCarouselStates([...initial])
 
-      // 4. Process ALL carousels in PARALLEL
-      const results = await Promise.allSettled(
-        carousels.map((_: unknown, i: number) =>
-          processOneCarousel(carousels[i], supabase, user!.id, selectedTemplate, i, runId)
-            .catch((err) => {
-              updateCarousel(i, { status: 'error', error: err instanceof Error ? err.message : String(err) })
-              throw err
-            })
+      await fontsPromise
+
+      // Phase 4: retry rounds
+      let toProcess = initial.map(c => c.idx)
+      while (toProcess.length > 0 && !stopAllRef.current) {
+        const round = toProcess
+        const results = await Promise.allSettled(
+          round.map(idx =>
+            processOneCarousel(idx, runId, historyBlock, selectedTemplate, user!.id, supabase)
+              .catch(err => {
+                // Tag the rejection with idx so we know which carousel failed
+                const wrapped = err instanceof Error ? err : new Error(String(err))
+                ;(wrapped as Error & { idx?: number }).idx = idx
+                throw wrapped
+              })
+          )
         )
-      )
 
-      const ids = results
-        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
-        .map(r => r.value)
+        const nextRound: number[] = []
+        results.forEach((r, i) => {
+          const idx = round[i]
+          if (r.status === 'rejected') {
+            const errObj = r.reason as Error
+            const message = errObj.message || 'Erreur inconnue'
+            // If user cancelled, leave it as 'cancelled' (already set in cancelOne)
+            if (stoppedRef.current.has(idx) || message === 'cancelled') {
+              return
+            }
+            const state = carouselStatesRef.current.find(c => c.idx === idx)
+            if (!state) return
+            const newAttempts = state.attempts + 1
+            const canRetry = newAttempts < MAX_ATTEMPTS && isRetryableError(errObj)
 
-      if (ids.length > 0) {
-        setTimeout(() => router.push(`/gallery/${ids[ids.length - 1]}`), 600)
+            // Cleanup partial DB row if any (so retry starts fresh)
+            if (state.id) {
+              fetch(`/api/carousels/${state.id}`, { method: 'DELETE' }).catch(() => {})
+            }
+
+            if (canRetry) {
+              updateCarousel(idx, {
+                status: 'queued',
+                attempts: newAttempts,
+                error: `Tentative ${newAttempts}/${MAX_ATTEMPTS} échouée — relance…`,
+                id: undefined,
+                abortController: undefined,
+              })
+              nextRound.push(idx)
+            } else {
+              updateCarousel(idx, {
+                status: 'error',
+                attempts: newAttempts,
+                error: message,
+                id: undefined,
+                abortController: undefined,
+              })
+            }
+          }
+        })
+
+        toProcess = nextRound
+      }
+
+      // Redirect to last successful carousel
+      const doneIds = carouselStatesRef.current
+        .filter(c => c.status === 'done' && c.id)
+        .map(c => c.id!)
+      if (doneIds.length > 0 && !stopAllRef.current) {
+        setTimeout(() => router.push(`/gallery/${doneIds[doneIds.length - 1]}`), 600)
       }
     } catch (err) {
-      updateLastGlobal({ status: 'error', error: err instanceof Error ? err.message : String(err) })
+      setGlobalError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
@@ -184,7 +347,12 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
 
   const totalCarousels = carouselStates.length
   const doneCount = carouselStates.filter(c => c.status === 'done').length
-  const errorCount = carouselStates.filter(c => c.status === 'error').length
+  const errorCount = carouselStates.filter(c => c.status === 'error' || c.status === 'cancelled').length
+  const finishedCount = doneCount + errorCount
+  const doneIds = carouselStates.filter(c => c.status === 'done' && c.id).map(c => c.id!)
+  const anyInProgress = carouselStates.some(c =>
+    c.status !== 'done' && c.status !== 'error' && c.status !== 'cancelled'
+  )
 
   return (
     <div className="bg-white rounded-xl2 shadow-soft overflow-hidden">
@@ -258,44 +426,57 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       {/* Tab: Processus */}
       {tab === 'processus' && (
         <div className="p-6 space-y-4">
-          {/* Global steps */}
-          {globalSteps.length > 0 && (
-            <ul className="space-y-1.5">
-              {globalSteps.map((s, idx) => (
-                <li key={`${s.key}_${idx}`} className="flex items-center gap-3 text-sm">
-                  <StepIcon status={s.status} />
-                  <span className={s.status === 'error' ? 'text-red-600' : 'text-ink-700'}>
-                    {s.label}
-                    {s.error && <span className="text-xs text-red-500 ml-2">— {s.error}</span>}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* Per-carousel progress */}
-          {carouselStates.length > 0 && (
-            <div className="space-y-2">
-              {totalCarousels > 1 && (
-                <div className="flex items-center justify-between text-xs text-ink-600 mb-1">
-                  <span>{totalCarousels} carousels en parallèle</span>
-                  <span className="font-medium">{doneCount + errorCount}/{totalCarousels}</span>
-                </div>
-              )}
-              {carouselStates.map(c => (
-                <div key={c.idx} className="flex items-center gap-3 py-2 px-3 rounded-xl bg-cream-50">
-                  <CarouselIcon status={c.status} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-ink-800 font-medium truncate">{c.label || `Carousel ${c.idx + 1}`}</p>
-                    <p className="text-xs text-ink-500">{statusLabel(c.status)}</p>
-                  </div>
-                  {c.error && <span className="text-xs text-red-500 truncate max-w-[140px]">{c.error}</span>}
-                </div>
-              ))}
+          {globalError && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+              {globalError}
             </div>
           )}
 
-          {globalSteps.length === 0 && carouselStates.length === 0 && (
+          {carouselStates.length > 0 && (
+            <>
+              <div className="flex items-center justify-between text-xs text-ink-600 mb-1">
+                <span>{totalCarousels} carousel{totalCarousels > 1 ? 's' : ''} en parallèle</span>
+                <div className="flex items-center gap-3">
+                  <span className="font-medium">{finishedCount}/{totalCarousels}</span>
+                  {anyInProgress && (
+                    <button
+                      onClick={cancelAll}
+                      className="text-red-600 hover:text-red-700 inline-flex items-center gap-1 font-medium"
+                    >
+                      <StopCircle size={13} /> Tout arrêter
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {carouselStates.map(c => (
+                  <div key={c.idx} className="flex items-center gap-3 py-2.5 px-3 rounded-xl bg-cream-50">
+                    <CarouselIcon status={c.status} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-ink-800 font-medium truncate">{c.label}</p>
+                      <p className="text-xs text-ink-500 truncate">
+                        {statusLabel(c.status)}
+                        {c.error && c.status !== 'queued' && <span className="text-red-500 ml-1">— {c.error}</span>}
+                        {c.error && c.status === 'queued' && <span className="text-ink-500 ml-1">— {c.error}</span>}
+                      </p>
+                    </div>
+                    {(c.status === 'text' || c.status === 'images' || c.status === 'rendering' || c.status === 'queued') && (
+                      <button
+                        onClick={() => cancelOne(c.idx)}
+                        title="Arrêter ce carousel"
+                        className="text-ink-400 hover:text-red-600 transition flex-shrink-0"
+                      >
+                        <StopCircle size={18} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {carouselStates.length === 0 && !globalError && (
             <p className="text-sm text-ink-600/60 text-center py-8">Lance une génération pour voir le processus ici.</p>
           )}
 
@@ -318,25 +499,37 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
 
 function statusLabel(status: CarouselStatus): string {
   switch (status) {
-    case 'pending': return 'En attente…'
+    case 'queued': return 'En attente…'
+    case 'text': return 'Génération des textes…'
     case 'images': return 'Génération des images…'
     case 'rendering': return 'Composition des slides…'
     case 'done': return 'Terminé'
     case 'error': return 'Erreur'
+    case 'cancelled': return 'Annulé'
   }
 }
 
-function StepIcon({ status }: { status: GlobalStep['status'] }) {
-  if (status === 'done') return <div className="w-5 h-5 rounded-full bg-pastel-mint flex items-center justify-center flex-shrink-0"><Check size={12} className="text-ink-900" /></div>
-  if (status === 'error') return <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0"><X size={12} className="text-red-600" /></div>
-  if (status === 'running') return <Loader2 size={16} className="animate-spin text-ink-600 flex-shrink-0" />
-  return <div className="w-5 h-5 rounded-full border border-cream-200 flex-shrink-0" />
-}
-
 function CarouselIcon({ status }: { status: CarouselStatus }) {
-  if (status === 'done') return <div className="w-7 h-7 rounded-full bg-pastel-mint flex items-center justify-center flex-shrink-0"><Check size={13} className="text-ink-900" /></div>
-  if (status === 'error') return <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0"><X size={13} className="text-red-600" /></div>
-  if (status === 'images') return <div className="w-7 h-7 rounded-full bg-pastel-lemon flex items-center justify-center flex-shrink-0"><ImageIcon size={13} className="text-ink-900 animate-pulse" /></div>
-  if (status === 'rendering') return <div className="w-7 h-7 rounded-full bg-pastel-lavender flex items-center justify-center flex-shrink-0"><Layers size={13} className="text-ink-900 animate-pulse" /></div>
-  return <div className="w-7 h-7 rounded-full border-2 border-cream-200 flex-shrink-0" />
+  // Done = green check
+  if (status === 'done') {
+    return (
+      <div className="w-7 h-7 rounded-full bg-pastel-mint flex items-center justify-center flex-shrink-0">
+        <Check size={14} className="text-ink-900" strokeWidth={3} />
+      </div>
+    )
+  }
+  // Error or cancelled = red X
+  if (status === 'error' || status === 'cancelled') {
+    return (
+      <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+        <X size={14} className="text-red-600" strokeWidth={3} />
+      </div>
+    )
+  }
+  // In progress (text/images/rendering/queued) = yellow circle with spinner
+  return (
+    <div className="w-7 h-7 rounded-full bg-pastel-lemon flex items-center justify-center flex-shrink-0">
+      <Loader2 size={14} className="text-ink-900 animate-spin" strokeWidth={2.5} />
+    </div>
+  )
 }
