@@ -31,6 +31,7 @@ import {
   Lock as LockIcon,
   Unlock as UnlockIcon,
   Upload,
+  Copy,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { FontPicker } from '@/components/FontPicker'
@@ -326,6 +327,30 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
     }))
   }
 
+  function duplicateSlideType(st: string) {
+    // Generate a unique name: "content" → "content2", "content2" → "content3", etc.
+    let candidate = `${st}_copie`
+    let i = 2
+    while (layout.slideTypes.includes(candidate)) {
+      candidate = `${st}_copie${i++}`
+    }
+    pushLayout((l) => {
+      const newElements = l.elements
+        .filter((el) => el.slideType === st)
+        .map((el) => ({
+          ...el,
+          id: `${el.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          slideType: candidate,
+        }))
+      return {
+        ...l,
+        slideTypes: [...l.slideTypes, candidate],
+        elements: [...l.elements, ...newElements],
+      }
+    })
+    setActiveSlideType(candidate)
+  }
+
   function commitRename() {
     if (!renamingType) return
     const newName = renameValue.trim()
@@ -555,6 +580,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
                   onCommitRename={commitRename}
                   onCancelRename={() => setRenamingType(null)}
                   onDelete={() => deleteSlideType(st)}
+                  onDuplicate={() => duplicateSlideType(st)}
                 />
               ))}
               <button
@@ -752,6 +778,7 @@ function SlideTypeTab({
   onCommitRename,
   onCancelRename,
   onDelete,
+  onDuplicate,
 }: {
   type: string
   active: boolean
@@ -764,6 +791,7 @@ function SlideTypeTab({
   onCommitRename: () => void
   onCancelRename: () => void
   onDelete: () => void
+  onDuplicate: () => void
 }) {
   if (renaming) {
     return (
@@ -810,6 +838,13 @@ function SlideTypeTab({
         title="Renommer"
       >
         <Pencil size={10} />
+      </button>
+      <button
+        onClick={onDuplicate}
+        className={`px-1.5 py-1 ${active ? 'hover:bg-ink-800' : 'hover:bg-cream-100'}`}
+        title="Dupliquer ce slide type"
+      >
+        <Copy size={10} />
       </button>
       {canDelete && (
         <button
