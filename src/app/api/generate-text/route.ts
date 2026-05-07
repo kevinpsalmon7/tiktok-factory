@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { generateCarousels, extractIntent } from '@/lib/anthropic'
+import { generateCarousels, extractIntent } from '@/lib/gemini-text'
 import { createLogger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 
@@ -10,7 +10,7 @@ export const maxDuration = 120
 type ProfileRow = {
   master_instructions: string
   avatar_instructions: string
-  anthropic_api_key: string | null
+  gemini_api_key: string | null
 }
 
 import type { TemplateLayout, TextElement } from '@/types/database'
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('master_instructions, avatar_instructions, anthropic_api_key')
+    .select('master_instructions, avatar_instructions, gemini_api_key')
     .eq('id', user.id)
     .single<ProfileRow>()
 
@@ -71,10 +71,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Template not found' }, { status: 404 })
   }
 
-  const apiKey = profile?.anthropic_api_key || process.env.ANTHROPIC_API_KEY
+  const apiKey = profile?.gemini_api_key || process.env.GEMINI_API_KEY
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Clé API Anthropic manquante. Renseignez-la dans Paramètres.' },
+      { error: 'Clé API Gemini manquante. Renseignez-la dans Paramètres.' },
       { status: 400 }
     )
   }
