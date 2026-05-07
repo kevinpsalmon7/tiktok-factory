@@ -5,6 +5,7 @@ import { Images, FolderDown, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import JSZip from 'jszip'
 import { DeleteCarouselButton } from '@/components/DeleteCarouselButton'
+import { ArchiveCarouselButton } from '@/components/ArchiveCarouselButton'
 
 type Slide = { rendered_url?: string }
 
@@ -29,6 +30,7 @@ export function GalleryCard({
   slides,
   createdAt,
   formattedDate,
+  archived = false,
   selectionMode = false,
   selected = false,
   onToggleSelect,
@@ -41,6 +43,7 @@ export function GalleryCard({
   slides: Slide[]
   createdAt: string
   formattedDate: string
+  archived?: boolean
   selectionMode?: boolean
   selected?: boolean
   onToggleSelect?: (id: string) => void
@@ -145,6 +148,7 @@ export function GalleryCard({
               }
             </button>
           )}
+          <ArchiveCarouselButton id={id} archived={archived} />
           <DeleteCarouselButton id={id} redirectAfter={null} />
         </div>
       </div>

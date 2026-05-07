@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
-import { Images } from 'lucide-react'
+import { Archive } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
-import { GalleryGrid } from './GalleryGrid'
+import { GalleryGrid } from '../gallery/GalleryGrid'
 
-export default async function GalleryPage() {
+export default async function ArchivesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -12,7 +12,7 @@ export default async function GalleryPage() {
     .from('carousels')
     .select('id, title, prompt, carousel_type, status, slides, created_at, archived')
     .eq('user_id', user.id)
-    .eq('archived', false)
+    .eq('archived', true)
     .order('created_at', { ascending: false })
     .returns<{ id: string; title: string; prompt: string; carousel_type: string; status: string; slides: { rendered_url?: string }[]; created_at: string; archived: boolean }[]>()
 
@@ -21,22 +21,22 @@ export default async function GalleryPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="font-display text-4xl font-semibold text-ink-900">Galerie</h1>
+        <h1 className="font-display text-4xl font-semibold text-ink-900">Archives</h1>
         <p className="text-ink-600 mt-2">
-          Tous vos carousels générés, du plus récent au plus ancien.
+          Vos carousels archivés. Restaurez-les pour les retrouver dans la galerie.
         </p>
       </div>
 
       {!hasItems ? (
         <div className="bg-white rounded-xl2 p-12 shadow-soft text-center">
           <div className="inline-flex p-4 rounded-full bg-pastel-pink mb-4">
-            <Images size={32} className="text-ink-900" />
+            <Archive size={32} className="text-ink-900" />
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink-900 mb-2">
-            Galerie vide
+            Aucun carousel archivé
           </h2>
           <p className="text-ink-600 max-w-md mx-auto">
-            Générez votre premier carousel pour le voir apparaître ici.
+            Archivez un carousel depuis la galerie pour le retrouver ici.
           </p>
         </div>
       ) : (
@@ -45,7 +45,7 @@ export default async function GalleryPage() {
             ...c,
             formattedDate: formatDateTime(c.created_at),
           }))}
-          mode="gallery"
+          mode="archives"
         />
       )}
     </div>

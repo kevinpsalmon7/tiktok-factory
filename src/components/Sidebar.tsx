@@ -10,6 +10,7 @@ import {
   LogOut,
   History,
   ScrollText,
+  Archive,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -20,6 +21,7 @@ const generalItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },
   { href: '/gallery', label: 'Galerie', icon: Images },
+  { href: '/archives', label: 'Archives', icon: Archive },
   { href: '/historique', label: 'Historique', icon: History },
   { href: '/logs', label: 'Logs', icon: ScrollText },
 ]
