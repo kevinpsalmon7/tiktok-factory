@@ -6,6 +6,7 @@ import { formatDateTime } from '@/lib/utils'
 import { CarouselMeta } from './CarouselMeta'
 import { DownloadZipButton } from './DownloadZipButton'
 import { DeleteCarouselButton } from '@/components/DeleteCarouselButton'
+import { ArchiveCarouselButton } from '@/components/ArchiveCarouselButton'
 
 type CarouselRow = {
   id: string
@@ -16,6 +17,7 @@ type CarouselRow = {
   status: string
   slides: { index: number; slide_type: string; text_fields: Record<string, string>; rendered_url?: string }[]
   created_at: string
+  archived: boolean
 }
 
 export default async function CarouselDetailPage({
@@ -30,7 +32,7 @@ export default async function CarouselDetailPage({
 
   const { data: carousel } = await supabase
     .from('carousels')
-    .select('id, title, description, prompt, carousel_type, status, slides, created_at')
+    .select('id, title, description, prompt, carousel_type, status, slides, created_at, archived')
     .eq('id', id)
     .eq('user_id', user.id)
     .single<CarouselRow>()
@@ -59,6 +61,7 @@ export default async function CarouselDetailPage({
             carouselType={carousel.carousel_type}
             createdAt={carousel.created_at}
           />
+          <ArchiveCarouselButton id={carousel.id} archived={carousel.archived} variant="button" />
           <DeleteCarouselButton id={carousel.id} variant="button" redirectAfter="/gallery" />
         </div>
       </div>

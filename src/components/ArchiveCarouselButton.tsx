@@ -8,9 +8,11 @@ import { createClient } from '@/lib/supabase/client'
 export function ArchiveCarouselButton({
   id,
   archived,
+  variant = 'icon',
 }: {
   id: string
   archived: boolean
+  variant?: 'icon' | 'button'
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -29,6 +31,26 @@ export function ArchiveCarouselButton({
     } finally {
       setLoading(false)
     }
+  }
+
+  if (variant === 'button') {
+    return (
+      <button
+        onClick={handleToggle}
+        disabled={loading}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm text-ink-700 hover:bg-ink-100 border border-ink-200 transition disabled:opacity-50"
+        title={archived ? 'Restaurer dans la galerie' : 'Archiver'}
+      >
+        {loading ? (
+          <Loader2 size={14} className="animate-spin" />
+        ) : archived ? (
+          <ArchiveRestore size={14} />
+        ) : (
+          <Archive size={14} />
+        )}
+        {archived ? 'Restaurer' : 'Archiver'}
+      </button>
+    )
   }
 
   return (
