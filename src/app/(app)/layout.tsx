@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/Sidebar'
 import { TopBar } from '@/components/TopBar'
+import { UserFontsProvider } from '@/lib/user-fonts-context'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -23,7 +24,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar avatarUrl={avatarUrl} userName={displayName} />
-        <main className="flex-1 overflow-y-auto px-6 pb-6">{children}</main>
+        <main className="flex-1 overflow-y-auto px-6 pb-6">
+          <UserFontsProvider>{children}</UserFontsProvider>
+        </main>
       </div>
     </div>
   )
