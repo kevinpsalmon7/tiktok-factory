@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
+import { GoogleGenAI, PersonGeneration } from '@google/genai'
 import type { Logger } from './logger'
 
 type GenerateImageArgs = {
@@ -63,7 +63,7 @@ export async function generateImage({
       numberOfImages: 1,
       aspectRatio: '9:16',
       outputMimeType: 'image/png',
-      personGeneration: 'ALLOW_ADULT',
+      personGeneration: PersonGeneration.ALLOW_ALL,
     },
   })
 
