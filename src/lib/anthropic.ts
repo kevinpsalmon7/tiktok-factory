@@ -79,6 +79,7 @@ type GenerateArgs = {
   styleGuide: string
   carouselInstructions: string
   masterInstructions?: string
+  absoluteRules?: string
   avatarInstructions?: string
   userPrompt?: string
   historyBlock?: string
@@ -96,6 +97,7 @@ export async function generateCarousels({
   styleGuide,
   carouselInstructions,
   masterInstructions = '',
+  absoluteRules = '',
   avatarInstructions = '',
   userPrompt = '',
   historyBlock = '',
@@ -110,6 +112,9 @@ export async function generateCarousels({
 
   const masterBlock = masterInstructions
     ? `INSTRUCTIONS MASTER (priorité absolue sur le reste) :\n${masterInstructions}\n\n`
+    : ''
+  const absoluteRulesBlock = absoluteRules
+    ? `RÈGLES IMPÉRATIVES (priorité maximale après les instructions master — ne peuvent jamais être violées) :\n${absoluteRules}\n\n`
     : ''
   const avatarBlock = avatarInstructions
     ? `PROFIL AVATAR :\n${avatarInstructions}\n\n`
@@ -129,7 +134,7 @@ export async function generateCarousels({
         .join('\n')
     : '  - "title", "content", "cta" → text_fields keys: title, text, cta'
 
-  const prompt = `${masterBlock}${avatarBlock}${historyBl}${userBlock}Tu génères du contenu pour des carousels TikTok/Instagram.\n\nWRITING RULES — ZERO TOLERANCE:\n- FORBIDDEN: em dash "—". Replace with period or line break.\n- FORBIDDEN: "---" as separator.\n- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).\n- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants ("It's not X. It's Y.", "Ce n'est pas X. C'est Y.", "Pas X. Juste Y.", "Not X. Y.", etc.). Never use this oppositional two-sentence structure. Find a direct, affirmative formulation instead.\n\nGenerate exactly ${count} carousel(s). Each must follow the style and structure below.\n\n--- STYLE GUIDE ---\n${styleGuide}\n\n--- CAROUSEL INSTRUCTIONS ---\n${carouselInstructions}\n\n--- AVAILABLE SLIDE TYPES ---\nFor each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.\n${slideTypesSpec}\n\nAllowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.\n\nReturn ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.\n\nEach carousel object must have:\n{\n  "carousel_type": "<brief description>",\n  "image_prompt_title": "<POSE/FRAMING/ANGLE only — close-up portrait, no setting, no action, no props. Strictly follow image prompt rules in carousel instructions. Must differ in pose AND hair colour from image_prompt_content.>",\n  "image_prompt_content": "<Topic-related, brief, evocative — always a woman, different pose AND different hair colour from image_prompt_title. Strictly follow image prompt rules in carousel instructions.>",\n  "slides": [\n    {\n      "index": 1,\n      "slide_type": "<one of the allowed values above>",\n      "text_fields": { "<role>": "<copy>", ... }\n    },\n    ...\n  ]\n}\n\nIMPORTANT:\n- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.\n- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty.\n- image_prompt_title: pose/framing/angle ONLY (no setting, no action, no props). Max 20 words.\n- image_prompt_content: must relate to the carousel topic. Max 20 words.\n- The two prompts MUST use different poses AND different hair colours.\n- There is NO illustration_prompt on individual slides.\n- All text in "text_fields" is what will be rendered on the slide.\n`
+  const prompt = `${masterBlock}${absoluteRulesBlock}${avatarBlock}${historyBl}${userBlock}Tu génères du contenu pour des carousels TikTok/Instagram.\n\nWRITING RULES — ZERO TOLERANCE:\n- FORBIDDEN: em dash "—". Replace with period or line break.\n- FORBIDDEN: "---" as separator.\n- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).\n- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants ("It's not X. It's Y.", "Ce n'est pas X. C'est Y.", "Pas X. Juste Y.", "Not X. Y.", etc.). Never use this oppositional two-sentence structure. Find a direct, affirmative formulation instead.\n\nGenerate exactly ${count} carousel(s). Each must follow the style and structure below.\n\n--- STYLE GUIDE ---\n${styleGuide}\n\n--- CAROUSEL INSTRUCTIONS ---\n${carouselInstructions}\n\n--- AVAILABLE SLIDE TYPES ---\nFor each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.\n${slideTypesSpec}\n\nAllowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.\n\nReturn ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.\n\nEach carousel object must have:\n{\n  "carousel_type": "<brief description>",\n  "image_prompt_title": "<POSE/FRAMING/ANGLE only — close-up portrait, no setting, no action, no props. Strictly follow image prompt rules in carousel instructions. Must differ in pose AND hair colour from image_prompt_content.>",\n  "image_prompt_content": "<Topic-related, brief, evocative — always a woman, different pose AND different hair colour from image_prompt_title. Strictly follow image prompt rules in carousel instructions.>",\n  "slides": [\n    {\n      "index": 1,\n      "slide_type": "<one of the allowed values above>",\n      "text_fields": { "<role>": "<copy>", ... }\n    },\n    ...\n  ]\n}\n\nIMPORTANT:\n- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.\n- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty.\n- image_prompt_title: pose/framing/angle ONLY (no setting, no action, no props). Max 20 words.\n- image_prompt_content: must relate to the carousel topic. Max 20 words.\n- The two prompts MUST use different poses AND different hair colours.\n- There is NO illustration_prompt on individual slides.\n- All text in "text_fields" is what will be rendered on the slide.\n`
 
   const imagesNote = images.length > 0
     ? `\n\nREFERENCE IMAGES: ${images.length} image(s) attached. Extract or adapt text from them as instructed by the user.`

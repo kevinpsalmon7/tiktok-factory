@@ -13,6 +13,7 @@ type TemplateRow = {
   gemini_instructions: string
   avatar_instructions: string
   randomization_instructions: string
+  absolute_rules: string
   platforms: string[]
 }
 
@@ -28,7 +29,7 @@ export default async function TemplateBuilderPage({
 
   const { data: template } = await supabase
     .from('templates')
-    .select('id, name, description, layout, style_guide, carousel_instructions, gemini_instructions, avatar_instructions, randomization_instructions, platforms')
+    .select('id, name, description, layout, style_guide, carousel_instructions, gemini_instructions, avatar_instructions, randomization_instructions, absolute_rules, platforms')
     .eq('id', id)
     .eq('user_id', user.id)
     .single<TemplateRow>()

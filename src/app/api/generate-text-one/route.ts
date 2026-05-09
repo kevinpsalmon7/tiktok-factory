@@ -23,6 +23,7 @@ type TemplateRow = {
   carousel_instructions: string
   avatar_instructions: string
   randomization_instructions: string
+  absolute_rules: string
   layout: TemplateLayout
 }
 
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
 
   const { data: template } = await supabase
     .from('templates')
-    .select('style_guide, carousel_instructions, avatar_instructions, randomization_instructions, layout')
+    .select('style_guide, carousel_instructions, avatar_instructions, randomization_instructions, absolute_rules, layout')
     .eq('id', templateId)
     .eq('user_id', user.id)
     .single<TemplateRow>()
@@ -113,6 +114,8 @@ export async function POST(request: Request) {
     const resolvedRandomization = resolveChoices(template.randomization_instructions || '')
     await log({ step: 'text_one.randomization', message: 'randomization_instructions resolved', payload: { resolvedRandomization } })
 
+    const absoluteRules = template.absolute_rules || ''
+
     await log({
       step: 'text_one.resolve_choices',
       message: 'resolved [[...]] markers in instructions',
@@ -128,6 +131,7 @@ export async function POST(request: Request) {
       styleGuide: resolvedStyleGuide,
       carouselInstructions: resolvedCarouselInstructions,
       masterInstructions: resolvedMaster,
+      absoluteRules,
       avatarInstructions: resolvedAvatar,
       userPrompt: (userPrompt || '') + (resolvedRandomization ? '\n\n' + resolvedRandomization : ''),
       historyBlock,

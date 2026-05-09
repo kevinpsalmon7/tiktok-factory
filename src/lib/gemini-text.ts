@@ -86,6 +86,7 @@ type GenerateArgs = {
   styleGuide: string
   carouselInstructions: string
   masterInstructions?: string
+  absoluteRules?: string
   avatarInstructions?: string
   userPrompt?: string
   historyBlock?: string
@@ -102,6 +103,7 @@ export async function generateCarousels({
   styleGuide,
   carouselInstructions,
   masterInstructions = '',
+  absoluteRules = '',
   avatarInstructions = '',
   userPrompt = '',
   historyBlock = '',
@@ -116,6 +118,9 @@ export async function generateCarousels({
 
   const masterBlock = masterInstructions
     ? `INSTRUCTIONS MASTER (priorité absolue sur le reste) :\n${masterInstructions}\n\n`
+    : ''
+  const absoluteRulesBlock = absoluteRules
+    ? `RÈGLES IMPÉRATIVES (priorité maximale après les instructions master — ne peuvent jamais être violées) :\n${absoluteRules}\n\n`
     : ''
   const avatarBlock = avatarInstructions
     ? `PROFIL AVATAR :\n${avatarInstructions}\n\n`
@@ -179,7 +184,7 @@ IMPORTANT:
 - There is NO illustration_prompt on individual slides.
 - All text in "text_fields" is what will be rendered on the slide.`
 
-  const userMessage = `${masterBlock}${avatarBlock}${historyBl}${userBlock}Generate exactly ${count} carousel(s).`
+  const userMessage = `${masterBlock}${absoluteRulesBlock}${avatarBlock}${historyBl}${userBlock}Generate exactly ${count} carousel(s).`
 
   const imageParts = images.map(img => ({
     inlineData: { mimeType: img.mimeType, data: img.base64 },
