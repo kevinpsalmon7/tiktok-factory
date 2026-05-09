@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { generateImage } from '@/lib/openai'
+import { generateImage as generateImageOpenAI } from '@/lib/openai'
+import { generateImage as generateImageGemini } from '@/lib/gemini-image'
 import { createLogger } from '@/lib/logger'
 import { resolveChoices } from '@/lib/resolve-choices'
 import { randomUUID } from 'crypto'
@@ -8,7 +9,7 @@ import { randomUUID } from 'crypto'
 // gpt-image-2 can take 60-180s; set to Vercel Pro max.
 export const maxDuration = 300
 
-type ProfileRow = { openai_api_key: string | null }
+type ProfileRow = { openai_api_key: string | null; gemini_api_key: string | null }
 type TemplateRow = { gemini_instructions: string; randomization_instructions: string }
 type ReferenceRow = { storage_path: string }
 
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
-  const { templateId, illustrationPrompt, carouselId, slideIndex, slideType, runId: incomingRunId, imageQuality } = body as {
+  const { templateId, illustrationPrompt, carouselId, slideIndex, slideType, runId: incomingRunId, imageQuality, imageLlm } = body as {
     templateId: string
     illustrationPrompt: string
     carouselId: string
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
     slideType?: string
     runId?: string
     imageQuality?: 'low' | 'medium' | 'high'
+    imageLlm?: 'openai' | 'gemini'
   }
 
   const runId = incomingRunId || randomUUID()
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('openai_api_key')
+    .select('openai_api_key, gemini_api_key')
     .eq('id', user.id)
     .single<ProfileRow>()
 
@@ -56,10 +58,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Template not found' }, { status: 404 })
   }
 
-  const apiKey = profile?.openai_api_key || process.env.OPENAI_API_KEY
+  const useGemini = imageLlm === 'gemini'
+  const apiKey = useGemini
+    ? (profile?.gemini_api_key || process.env.GEMINI_API_KEY)
+    : (profile?.openai_api_key || process.env.OPENAI_API_KEY)
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Clé API OpenAI manquante. Renseignez-la dans Paramètres.' },
+      { error: `Clé API ${useGemini ? 'Gemini' : 'OpenAI'} manquante. Renseignez-la dans Paramètres.` },
       { status: 400 }
     )
   }
@@ -97,15 +102,24 @@ export async function POST(request: Request) {
     const resolvedRandomization = resolveChoices(template.randomization_instructions || '')
     await log({ step: 'image.randomization', message: 'randomization_instructions resolved', payload: { resolvedRandomization } })
 
-    const rawBytes = await generateImage({
-      apiKey,
-      styleInstructions: resolvedStyle + (resolvedRandomization ? '\n\n' + resolvedRandomization : ''),
-      illustrationPrompt,
-      referenceImages,
-      slideType,
-      quality: imageQuality ?? 'low',
-      log,
-    })
+    const rawBytes = useGemini
+      ? await generateImageGemini({
+          apiKey,
+          styleInstructions: resolvedStyle + (resolvedRandomization ? '\n\n' + resolvedRandomization : ''),
+          illustrationPrompt,
+          slideType,
+          quality: imageQuality ?? 'low',
+          log,
+        })
+      : await generateImageOpenAI({
+          apiKey,
+          styleInstructions: resolvedStyle + (resolvedRandomization ? '\n\n' + resolvedRandomization : ''),
+          illustrationPrompt,
+          referenceImages,
+          slideType,
+          quality: imageQuality ?? 'low',
+          log,
+        })
 
     // Resize to 1080×1920 (9:16)
     const imageBytes: Buffer = await sharp(rawBytes)

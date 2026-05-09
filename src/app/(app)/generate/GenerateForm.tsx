@@ -84,9 +84,13 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
   const searchParams = useSearchParams()
   const [tab, setTab] = useState<Tab>('creation')
   const [templateId, setTemplateId] = useState(templates[0]?.id || '')
-  const [llm, setLlm] = useState<'gemini' | 'claude'>(() => {
-    if (typeof window !== 'undefined') return (localStorage.getItem('preferredLlm') as 'gemini' | 'claude') || 'gemini'
+  const [llm, setLlm] = useState<'gemini' | 'claude' | 'chatgpt'>(() => {
+    if (typeof window !== 'undefined') return (localStorage.getItem('preferredLlm') as 'gemini' | 'claude' | 'chatgpt') || 'gemini'
     return 'gemini'
+  })
+  const [imageLlm, setImageLlm] = useState<'openai' | 'gemini'>(() => {
+    if (typeof window !== 'undefined') return (localStorage.getItem('preferredImageLlm') as 'openai' | 'gemini') || 'openai'
+    return 'openai'
   })
   const [imageQuality, setImageQuality] = useState<'low' | 'medium' | 'high'>(() => {
     if (typeof window !== 'undefined') return (localStorage.getItem('preferredImageQuality') as 'low' | 'medium' | 'high') || 'low'
@@ -183,7 +187,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt, slideType, runId, imageQuality }),
+        body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt, slideType, runId, imageQuality, imageLlm }),
         signal: ac.signal,
       })
       if (!res.ok) {
@@ -416,12 +420,13 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       {tab === 'creation' && (
         <div className="p-6 space-y-5">
           {/* Text LLM */}
-          <div className="flex items-center gap-4">
-            <label className="text-xs text-ink-600 w-14 shrink-0">Textes</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-ink-600">Textes</label>
             <div className="flex gap-2">
               {([
-                { value: 'gemini', label: 'Gemini' },
-                { value: 'claude', label: 'Claude' },
+                { value: 'gemini',  label: 'Gemini' },
+                { value: 'claude',  label: 'Claude' },
+                { value: 'chatgpt', label: 'ChatGPT' },
               ] as const).map(({ value, label }) => (
                 <button key={value}
                   onClick={() => { setLlm(value); localStorage.setItem('preferredLlm', value) }}
@@ -433,30 +438,34 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           </div>
 
           {/* Image LLM + quality */}
-          <div className="flex items-start gap-4">
-            <label className="text-xs text-ink-600 w-14 shrink-0 pt-2">Images</label>
-            <div className="flex flex-col gap-2">
-              {/* Model pill — only GPT Image 2 for now */}
-              <div className="flex gap-2">
-                <button className="px-4 py-2 rounded-full text-sm bg-ink-900 text-white cursor-default">
-                  GPT Image 2
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-ink-600">Images</label>
+            <div className="flex gap-2">
+              {([
+                { value: 'openai', label: 'GPT Image 2' },
+                { value: 'gemini', label: 'Gemini' },
+              ] as const).map(({ value, label }) => (
+                <button key={value}
+                  onClick={() => { setImageLlm(value); localStorage.setItem('preferredImageLlm', value) }}
+                  className={`px-4 py-2 rounded-full text-sm transition ${imageLlm === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
+                  {label}
                 </button>
-              </div>
-              {/* Quality */}
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-ink-500">Qualité</span>
-                {([
-                  { value: 'low',    label: 'Rapide' },
-                  { value: 'medium', label: 'Standard' },
-                  { value: 'high',   label: 'HD' },
-                ] as const).map(({ value, label }) => (
-                  <button key={value}
-                    onClick={() => { setImageQuality(value); localStorage.setItem('preferredImageQuality', value) }}
-                    className={`px-3 py-1.5 rounded-full text-xs transition ${imageQuality === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+              ))}
+            </div>
+            {/* Quality */}
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[11px] text-ink-500">Qualité</span>
+              {([
+                { value: 'low',    label: 'Rapide' },
+                { value: 'medium', label: 'Standard' },
+                { value: 'high',   label: 'HD' },
+              ] as const).map(({ value, label }) => (
+                <button key={value}
+                  onClick={() => { setImageQuality(value); localStorage.setItem('preferredImageQuality', value) }}
+                  className={`px-3 py-1.5 rounded-full text-xs transition ${imageQuality === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
           <div>

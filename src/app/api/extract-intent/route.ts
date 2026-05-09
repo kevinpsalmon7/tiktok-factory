@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { extractIntent as extractIntentGemini } from '@/lib/gemini-text'
 import { extractIntent as extractIntentClaude } from '@/lib/anthropic'
+import { extractIntent as extractIntentChatGPT } from '@/lib/openai-text'
 import { createLogger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 
@@ -10,6 +11,7 @@ export const maxDuration = 60
 type ProfileRow = {
   gemini_api_key: string | null
   anthropic_api_key: string | null
+  openai_api_key: string | null
 }
 
 export async function POST(request: Request) {
@@ -20,7 +22,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
   const { prompt: userPrompt, llm = 'gemini' } = body as {
     prompt?: string
-    llm?: 'gemini' | 'claude'
+    llm?: 'gemini' | 'claude' | 'chatgpt'
   }
 
   const runId = randomUUID()
@@ -29,16 +31,20 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('gemini_api_key, anthropic_api_key')
+    .select('gemini_api_key, anthropic_api_key, openai_api_key')
     .eq('id', user.id)
     .single<ProfileRow>()
 
   const apiKey = llm === 'claude'
     ? (profile?.anthropic_api_key || process.env.ANTHROPIC_API_KEY)
+    : llm === 'chatgpt'
+    ? (profile?.openai_api_key || process.env.OPENAI_API_KEY)
     : (profile?.gemini_api_key || process.env.GEMINI_API_KEY)
+
+  const providerLabel = llm === 'claude' ? 'Anthropic' : llm === 'chatgpt' ? 'OpenAI' : 'Gemini'
   if (!apiKey) {
     return NextResponse.json(
-      { error: `Clé API ${llm === 'claude' ? 'Anthropic' : 'Gemini'} manquante. Renseignez-la dans Paramètres.` },
+      { error: `Clé API ${providerLabel} manquante. Renseignez-la dans Paramètres.` },
       { status: 400 }
     )
   }
@@ -66,7 +72,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const extractIntent = llm === 'claude' ? extractIntentClaude : extractIntentGemini
+    const extractIntent = llm === 'claude' ? extractIntentClaude : llm === 'chatgpt' ? extractIntentChatGPT : extractIntentGemini
     const intent = await extractIntent(userPrompt || '', apiKey, log)
     await log({ step: 'intent.done', message: `intent extracted: ${intent.count} carousel(s)`, payload: { count: intent.count, perCarousel: intent.perCarousel } })
     return NextResponse.json({

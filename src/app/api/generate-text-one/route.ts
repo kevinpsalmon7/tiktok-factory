@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateCarousels as generateCarouselsGemini } from '@/lib/gemini-text'
 import { generateCarousels as generateCarouselsClaude } from '@/lib/anthropic'
+import { generateCarousels as generateCarouselsChatGPT } from '@/lib/openai-text'
 import { createLogger } from '@/lib/logger'
 import { resolveChoices } from '@/lib/resolve-choices'
 import { randomUUID } from 'crypto'
@@ -14,7 +15,9 @@ type ProfileRow = {
   avatar_instructions: string
   gemini_api_key: string | null
   anthropic_api_key: string | null
+  openai_api_key: string | null
 }
+
 
 import type { TemplateLayout, TextElement } from '@/types/database'
 
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
   const {
     templateId,
     prompt: userPrompt,
-    llm = 'gemini',
+    llm = 'gemini' as 'gemini' | 'claude' | 'chatgpt',
     runId: incomingRunId,
     historyBlock = '',
     carouselTag = '',
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
   } = body as {
     templateId: string
     prompt?: string
-    llm?: 'gemini' | 'claude'
+    llm?: 'gemini' | 'claude' | 'chatgpt'
     runId?: string
     historyBlock?: string
     carouselTag?: string
@@ -59,11 +62,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'templateId required' }, { status: 400 })
   }
 
-  const generateCarousels = llm === 'claude' ? generateCarouselsClaude : generateCarouselsGemini
+  const generateCarousels = llm === 'claude' ? generateCarouselsClaude : llm === 'chatgpt' ? generateCarouselsChatGPT : generateCarouselsGemini
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('master_instructions, avatar_instructions, gemini_api_key, anthropic_api_key')
+    .select('master_instructions, avatar_instructions, gemini_api_key, anthropic_api_key, openai_api_key')
     .eq('id', user.id)
     .single<ProfileRow>()
 
@@ -80,10 +83,13 @@ export async function POST(request: Request) {
 
   const apiKey = llm === 'claude'
     ? (profile?.anthropic_api_key || process.env.ANTHROPIC_API_KEY)
+    : llm === 'chatgpt'
+    ? (profile?.openai_api_key || process.env.OPENAI_API_KEY)
     : (profile?.gemini_api_key || process.env.GEMINI_API_KEY)
   if (!apiKey) {
+    const providerLabel = llm === 'claude' ? 'Anthropic' : llm === 'chatgpt' ? 'OpenAI' : 'Gemini'
     return NextResponse.json(
-      { error: `Clé API ${llm === 'claude' ? 'Anthropic' : 'Gemini'} manquante. Renseignez-la dans Paramètres.` },
+      { error: `Clé API ${providerLabel} manquante. Renseignez-la dans Paramètres.` },
       { status: 400 }
     )
   }
