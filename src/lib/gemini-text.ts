@@ -117,15 +117,15 @@ export async function generateCarousels({
   const ai = new GoogleGenAI({ apiKey })
 
   const masterBlock = masterInstructions
-    ? `INSTRUCTIONS MASTER (priorité absolue sur le reste) :\n${masterInstructions}\n\n`
+    ? `MASTER INSTRUCTIONS (absolute priority over all other instructions):\n${masterInstructions}\n\n`
     : ''
   const absoluteRulesBlock = absoluteRules
-    ? `RÈGLES IMPÉRATIVES (priorité maximale après les instructions master — ne peuvent jamais être violées) :\n${absoluteRules}\n\n`
+    ? `MANDATORY RULES (highest priority after master instructions — can never be violated):\n${absoluteRules}\n\n`
     : ''
   const avatarBlock = avatarInstructions
-    ? `PROFIL AVATAR :\n${avatarInstructions}\n\n`
+    ? `AVATAR PROFILE:\n${avatarInstructions}\n\n`
     : ''
-  const userBlock = userPrompt ? `DEMANDE UTILISATEUR :\n${userPrompt}\n\n` : ''
+  const userBlock = userPrompt ? `USER REQUEST:\n${userPrompt}\n\n` : ''
   const historyBl = historyBlock ? `${historyBlock}\n\n` : ''
 
   const slideTypeNames = rolesByType ? Object.keys(rolesByType) : ['title', 'content', 'cta']
@@ -138,7 +138,7 @@ export async function generateCarousels({
         .join('\n')
     : '  - "title", "content", "cta" → text_fields keys: title, text, cta'
 
-  const systemInstruction = `Tu génères du contenu pour des carousels TikTok/Instagram.
+  const systemInstruction = `You generate content for TikTok/Instagram carousels.
 
 WRITING RULES — ZERO TOLERANCE:
 - FORBIDDEN: em dash "—". Replace with period or line break.
