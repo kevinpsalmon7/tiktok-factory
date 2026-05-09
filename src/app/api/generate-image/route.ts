@@ -7,6 +7,26 @@ import { randomUUID } from 'crypto'
 // gpt-image-2 can take 60-180s; set to Vercel Pro max.
 export const maxDuration = 300
 
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+const BACKGROUND_COLORS = [
+  'deep cobalt blue',
+  'vibrant terracotta',
+  'warm mustard yellow',
+  'dark teal',
+  'bubblegum pink',
+  'sage green',
+  'dusty mauve',
+  'burnt sienna',
+]
+
+function buildColorBlock(): string {
+  const color = pick(BACKGROUND_COLORS)
+  return `\n\nDOMINANT BACKGROUND COLOR — MANDATORY: The primary/dominant background color of this image MUST be "${color}". This instruction overrides any default color tendency. Do not use blue unless "${color}" is blue.`
+}
+
 type ProfileRow = { openai_api_key: string | null }
 type TemplateRow = { gemini_instructions: string }
 type ReferenceRow = { storage_path: string }
@@ -91,9 +111,12 @@ export async function POST(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const sharp = require('sharp')
 
+    const colorBlock = buildColorBlock()
+    await log({ step: 'image.color', message: `random background color injected`, payload: { colorBlock } })
+
     const rawBytes = await generateImage({
       apiKey,
-      styleInstructions: template.gemini_instructions,
+      styleInstructions: template.gemini_instructions + colorBlock,
       illustrationPrompt,
       referenceImages,
       slideType,
