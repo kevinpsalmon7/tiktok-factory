@@ -13,7 +13,7 @@ type GenerateImageArgs = {
 function compositionRulesForSlide(slideType?: string): string {
   switch (slideType) {
     case 'title':
-      return '\n\n## CURRENT SLIDE — TITLE\nFraming: tight close-up. Face only or face and shoulders only. The figure occupies the dominant portion of the frame. No full body. No wide shot. No environmental storytelling.'
+      return '\n\n## CURRENT SLIDE — TITLE\nFraming: full body. The entire character from head to toe must be visible. No cropping at waist or knees. No close-up. Pure white background, no environment.'
     case 'content':
       return '\n\n## CURRENT SLIDE — CONTENT\nComposition: abstract, atmospheric figure. Quiet, simplified, almost timeless backdrop. No narrative scene with multiple props or specific situations being lived out. A figure and a mood, nothing more.'
     case 'cta':

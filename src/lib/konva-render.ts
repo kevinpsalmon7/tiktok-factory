@@ -273,14 +273,40 @@ async function addElement(
     if (!src) return
 
     const img = await loadImage(src)
-    layer.add(
-      new Konva.Image({
-        ...common,
-        image: img,
-        width: i.width,
-        height: i.height,
-      })
-    )
+    const fit = (i as ImageElement & { fit?: string }).fit ?? 'cover'
+
+    if (fit === 'contain') {
+      // Scale to fit inside the box, preserving aspect ratio (letterbox)
+      const scaleX = i.width / img.naturalWidth
+      const scaleY = i.height / img.naturalHeight
+      const scale = Math.min(scaleX, scaleY)
+      const drawW = img.naturalWidth * scale
+      const drawH = img.naturalHeight * scale
+      const offsetX = (i.width - drawW) / 2
+      const offsetY = (i.height - drawH) / 2
+      layer.add(
+        new Konva.Image({
+          ...common,
+          x: i.x + offsetX,
+          y: i.y + offsetY,
+          image: img,
+          width: drawW,
+          height: drawH,
+        })
+      )
+    } else {
+      // fit: cover — fill the box, clip overflow
+      const scaleX = i.width / img.naturalWidth
+      const scaleY = i.height / img.naturalHeight
+      const scale = Math.max(scaleX, scaleY)
+      const drawW = img.naturalWidth * scale
+      const drawH = img.naturalHeight * scale
+      const offsetX = (i.width - drawW) / 2
+      const offsetY = (i.height - drawH) / 2
+      const group = new Konva.Group({ x: i.x, y: i.y, clipX: 0, clipY: 0, clipWidth: i.width, clipHeight: i.height, opacity: i.opacity ?? 1, listening: false })
+      group.add(new Konva.Image({ x: offsetX, y: offsetY, image: img, width: drawW, height: drawH, listening: false }))
+      layer.add(group)
+    }
     return
   }
 
