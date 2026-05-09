@@ -18,13 +18,14 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
-  const { templateId, illustrationPrompt, carouselId, slideIndex, slideType, runId: incomingRunId } = body as {
+  const { templateId, illustrationPrompt, carouselId, slideIndex, slideType, runId: incomingRunId, imageQuality } = body as {
     templateId: string
     illustrationPrompt: string
     carouselId: string
     slideIndex: number
     slideType?: string
     runId?: string
+    imageQuality?: 'low' | 'medium' | 'high'
   }
 
   const runId = incomingRunId || randomUUID()
@@ -102,6 +103,7 @@ export async function POST(request: Request) {
       illustrationPrompt,
       referenceImages,
       slideType,
+      quality: imageQuality ?? 'low',
       log,
     })
 

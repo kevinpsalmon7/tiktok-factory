@@ -16,6 +16,7 @@ type GenerateImageArgs = {
   referenceImages?: ReferenceImage[]
   slideType?: SlideType
   model?: string
+  quality?: 'low' | 'medium' | 'high'
   log?: Logger
 }
 
@@ -52,6 +53,7 @@ export async function generateImage({
   referenceImages = [],
   slideType,
   model = 'gpt-image-2',
+  quality = 'low',
   log,
 }: GenerateImageArgs): Promise<Buffer> {
   const client = new OpenAI({ apiKey })
@@ -92,7 +94,7 @@ export async function generateImage({
     image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
     prompt: fullPrompt,
     size: '1024x1536',
-    quality: 'low',
+    quality,
     n: 1,
   })
 
