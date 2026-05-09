@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 const ALLOWED_EXTS = ['ttf', 'otf', 'woff', 'woff2']
+// Supabase Storage doesn't allow font/* MIME types by default.
+// application/octet-stream is always accepted and browsers still load
+// fonts correctly via @font-face regardless of the served content-type.
 const MIME_TYPES: Record<string, string> = {
-  ttf: 'font/ttf',
-  otf: 'font/otf',
-  woff: 'font/woff',
-  woff2: 'font/woff2',
+  ttf: 'application/octet-stream',
+  otf: 'application/octet-stream',
+  woff: 'application/octet-stream',
+  woff2: 'application/octet-stream',
 }
 
 export async function POST(request: Request) {
