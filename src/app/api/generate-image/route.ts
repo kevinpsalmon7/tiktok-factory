@@ -8,28 +8,8 @@ import { randomUUID } from 'crypto'
 // gpt-image-2 can take 60-180s; set to Vercel Pro max.
 export const maxDuration = 300
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
-}
-
-const BACKGROUND_COLORS = [
-  'deep cobalt blue',
-  'vibrant terracotta',
-  'warm mustard yellow',
-  'dark teal',
-  'bubblegum pink',
-  'sage green',
-  'dusty mauve',
-  'burnt sienna',
-]
-
-function buildColorBlock(): string {
-  const color = pick(BACKGROUND_COLORS)
-  return `\n\nDOMINANT BACKGROUND COLOR — MANDATORY: The primary/dominant background color of this image MUST be "${color}". This instruction overrides any default color tendency. Do not use blue unless "${color}" is blue.`
-}
-
 type ProfileRow = { openai_api_key: string | null }
-type TemplateRow = { gemini_instructions: string }
+type TemplateRow = { gemini_instructions: string; randomization_instructions: string }
 type ReferenceRow = { storage_path: string }
 
 export async function POST(request: Request) {
@@ -66,7 +46,7 @@ export async function POST(request: Request) {
 
   const { data: template } = await supabase
     .from('templates')
-    .select('gemini_instructions')
+    .select('gemini_instructions, randomization_instructions')
     .eq('id', templateId)
     .eq('user_id', user.id)
     .single<TemplateRow>()
@@ -112,13 +92,13 @@ export async function POST(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const sharp = require('sharp')
 
-    const colorBlock = buildColorBlock()
     const resolvedStyle = resolveChoices(template.gemini_instructions)
-    await log({ step: 'image.color', message: `random background color injected`, payload: { colorBlock } })
+    const resolvedRandomization = resolveChoices(template.randomization_instructions || '')
+    await log({ step: 'image.randomization', message: 'randomization_instructions resolved', payload: { resolvedRandomization } })
 
     const rawBytes = await generateImage({
       apiKey,
-      styleInstructions: resolvedStyle + colorBlock,
+      styleInstructions: resolvedStyle + (resolvedRandomization ? '\n\n' + resolvedRandomization : ''),
       illustrationPrompt,
       referenceImages,
       slideType,

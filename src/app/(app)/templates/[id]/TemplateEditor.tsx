@@ -60,6 +60,7 @@ type InitialTemplate = {
   carousel_instructions: string
   gemini_instructions: string
   avatar_instructions: string
+  randomization_instructions: string
   platforms: string[]
 }
 
@@ -90,6 +91,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
   )
   const [geminiInstructions, setGeminiInstructions] = useState(initialTemplate.gemini_instructions)
   const [avatarInstructions, setAvatarInstructions] = useState(initialTemplate.avatar_instructions)
+  const [randomizationInstructions, setRandomizationInstructions] = useState(initialTemplate.randomization_instructions)
 
   // Normalize incoming layout so older saves still work with the new model.
   const normalizedInitial = useMemo(
@@ -386,6 +388,7 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         carousel_instructions: carouselInstructions,
         gemini_instructions: geminiInstructions,
         avatar_instructions: avatarInstructions,
+        randomization_instructions: randomizationInstructions,
       })
       .eq('id', initialTemplate.id)
     setSaving(false)
@@ -655,6 +658,12 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
             Chaque section accepte un fichier PDF, .txt ou .md.
           </p>
           <div className="space-y-8">
+            <InstructionSection
+              title="Randomisation"
+              subtitle={`Choix aléatoires injectés à chaque génération. Syntaxe : [[option A | option B (40%) | option C]]. Contrôle le type de carrousel, la couleur de fond, les détails des images, etc.`}
+              value={randomizationInstructions}
+              onChange={setRandomizationInstructions}
+            />
             <InstructionSection
               title="Instructions générales"
               subtitle="Consignes de structure, nombre de slides, contraintes de génération."

@@ -6,22 +6,6 @@ import { createLogger } from '@/lib/logger'
 import { resolveChoices } from '@/lib/resolve-choices'
 import { randomUUID } from 'crypto'
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
-}
-
-function buildImageChoicesBlock(): string {
-  const hairColors = ['black', 'brown', 'white', 'blond']
-  const framings = ['close-up', 'really close-up', 'head and shoulders', 'head and chest']
-  const eyes = ['open eyes', 'eyes closed']
-
-  const titleHair = pick(hairColors)
-  const contentHair = pick(hairColors.filter(c => c !== titleHair))
-
-  return `\nRANDOMIZED IMAGE CHOICES — use EXACTLY these values when writing image_prompt_title and image_prompt_content, no substitution allowed:
-- image_prompt_title → framing: "${pick(framings)}", hair: "${titleHair}", eyes: "${pick(eyes)}"
-- image_prompt_content → hair: "${contentHair}", eyes: "${pick(eyes)}"`
-}
 
 export const maxDuration = 300
 
@@ -38,6 +22,7 @@ type TemplateRow = {
   style_guide: string
   carousel_instructions: string
   avatar_instructions: string
+  randomization_instructions: string
   layout: TemplateLayout
 }
 
@@ -83,7 +68,7 @@ export async function POST(request: Request) {
 
   const { data: template } = await supabase
     .from('templates')
-    .select('style_guide, carousel_instructions, avatar_instructions, layout')
+    .select('style_guide, carousel_instructions, avatar_instructions, randomization_instructions, layout')
     .eq('id', templateId)
     .eq('user_id', user.id)
     .single<TemplateRow>()
@@ -120,14 +105,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const imageChoices = buildImageChoicesBlock()
-    await log({ step: 'text_one.image_choices', message: 'randomized image choices injected', payload: { imageChoices } })
-
     // Resolve [[option1 | option2 (weight%)]] markers in all instruction fields
     const resolvedCarouselInstructions = resolveChoices(template.carousel_instructions)
     const resolvedStyleGuide = resolveChoices(template.style_guide)
     const resolvedMaster = profile?.master_instructions ? resolveChoices(profile.master_instructions) : undefined
     const resolvedAvatar = resolveChoices(template.avatar_instructions || profile?.avatar_instructions || '')
+    const resolvedRandomization = resolveChoices(template.randomization_instructions || '')
+    await log({ step: 'text_one.randomization', message: 'randomization_instructions resolved', payload: { resolvedRandomization } })
 
     await log({
       step: 'text_one.resolve_choices',
@@ -145,7 +129,7 @@ export async function POST(request: Request) {
       carouselInstructions: resolvedCarouselInstructions,
       masterInstructions: resolvedMaster,
       avatarInstructions: resolvedAvatar,
-      userPrompt: (userPrompt || '') + imageChoices,
+      userPrompt: (userPrompt || '') + (resolvedRandomization ? '\n\n' + resolvedRandomization : ''),
       historyBlock,
       count: 1,
       rolesByType,
