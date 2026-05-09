@@ -135,10 +135,11 @@ export async function generateCarousels({
 
   const systemInstruction = `Tu génères du contenu pour des carousels TikTok/Instagram.
 
-PUNCTUATION RULES — ZERO TOLERANCE:
+WRITING RULES — ZERO TOLERANCE:
 - FORBIDDEN: em dash "—". Replace with period or line break.
 - FORBIDDEN: "---" as separator.
 - FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).
+- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants ("It's not X. It's Y.", "Ce n'est pas X. C'est Y.", "Pas X. Juste Y.", "Not X. Y.", etc.). Never use this oppositional two-sentence structure. Find a direct, affirmative formulation instead.
 
 --- STYLE GUIDE ---
 ${styleGuide}
