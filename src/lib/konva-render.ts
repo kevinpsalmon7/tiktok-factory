@@ -35,18 +35,16 @@ export async function renderSlideToDataUrl(
   const layer = new Konva.Layer({ listening: false })
   stage.add(layer)
 
-  if (layout.backgroundColor) {
-    layer.add(
-      new Konva.Rect({
-        x: 0,
-        y: 0,
-        width: layout.width,
-        height: layout.height,
-        fill: layout.backgroundColor,
-        listening: false,
-      })
-    )
-  }
+  layer.add(
+    new Konva.Rect({
+      x: 0,
+      y: 0,
+      width: layout.width,
+      height: layout.height,
+      fill: layout.backgroundColor || '#ffffff',
+      listening: false,
+    })
+  )
 
   // Only elements belonging to THIS slide type
   const visible = layout.elements

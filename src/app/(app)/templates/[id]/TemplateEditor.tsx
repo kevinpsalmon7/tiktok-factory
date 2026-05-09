@@ -250,8 +250,8 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
       newEl = {
         ...base,
         type: 'rect',
-        fill: '#f1b5c6',
-        cornerRadius: 12,
+        fill: '#ffffff',
+        cornerRadius: 0,
       } satisfies RectElement
     }
     pushLayout((l) => ({ ...l, elements: [...l.elements, newEl] }))
@@ -510,6 +510,9 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
                 <IconButton onClick={() => addElement('image')} title="Image">
                   <ImageIcon size={14} />
                 </IconButton>
+                <IconButton onClick={() => addElement('rect')} title="Forme">
+                  <Square size={14} />
+                </IconButton>
               </div>
               <div className="flex flex-col gap-1 mt-2">
                 {visibleElementsForActiveType.map((el) => (
@@ -562,6 +565,20 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
               <p className="text-[10px] text-ink-600/60 px-2 mt-2">
                 Guides violets sur le canvas
               </p>
+            </div>
+
+            {/* Background color */}
+            <div className="border-t border-cream-100 pt-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-ink-600 px-2 mb-2">
+                Fond
+              </div>
+              <div className="px-1">
+                <ColorField
+                  label="Couleur de fond"
+                  value={layout.backgroundColor || '#ffffff'}
+                  onChange={(v) => pushLayout((l) => ({ ...l, backgroundColor: v }))}
+                />
+              </div>
             </div>
           </div>
 
@@ -1454,11 +1471,18 @@ function RectProperties({
         value={element.fill}
         onChange={(v) => onChange({ fill: v })}
       />
-      <NumberField
-        label="Rayon coin"
-        value={element.cornerRadius || 0}
-        onChange={(v) => onChange({ cornerRadius: v })}
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <NumberField
+          label="Rayon coin"
+          value={element.cornerRadius || 0}
+          onChange={(v) => onChange({ cornerRadius: Math.max(0, v) })}
+        />
+        <NumberField
+          label="Opacité (%)"
+          value={Math.round((element.opacity ?? 1) * 100)}
+          onChange={(v) => onChange({ opacity: Math.max(0, Math.min(100, v)) / 100 })}
+        />
+      </div>
     </>
   )
 }
