@@ -1288,6 +1288,24 @@ function TextProperties({
             ))}
           </select>
         </div>
+        <div className="border border-cream-200 rounded-lg p-2 space-y-1.5">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={sel.highlight ?? false}
+              onChange={(e) => updatePara({ highlight: e.target.checked })}
+              className="w-3 h-3 accent-ink-900"
+            />
+            <span className="text-[10px] text-ink-700 font-medium">Surligner (IA choisit les mots)</span>
+          </label>
+          {sel.highlight && (
+            <ColorField
+              label="Couleur du surlignement"
+              value={sel.highlightColor ?? '#FFE500'}
+              onChange={(v) => updatePara({ highlightColor: v })}
+            />
+          )}
+        </div>
         <div>
           <label className="block text-[10px] text-ink-600 mb-0.5">Police</label>
           <FontPicker

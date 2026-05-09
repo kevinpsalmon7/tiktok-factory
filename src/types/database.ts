@@ -148,6 +148,10 @@ export type TextParagraph = {
   color?: string
   align?: 'left' | 'center' | 'right'
   lineHeight?: number
+  /** When true, the AI wraps key words in ==...== markers for rough highlighting */
+  highlight?: boolean
+  /** Highlight fill color (default #FFE500) */
+  highlightColor?: string
 }
 
 export interface BaseElement {

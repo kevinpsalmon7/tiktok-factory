@@ -1,4 +1,5 @@
 import Konva from 'konva'
+import rough from 'roughjs'
 import type {
   TemplateLayout,
   TemplateElement,
@@ -8,6 +9,11 @@ import type {
   CarouselSlide,
   TextRole,
 } from '@/types/database'
+import {
+  stripHighlightMarkers,
+  hasHighlightMarkers,
+  computeHighlightRects,
+} from '@/lib/highlight-utils'
 
 export async function renderSlideToDataUrl(
   layout: TemplateLayout,
@@ -93,13 +99,15 @@ async function addElement(
       : [{ role: t.role as TextRole }]
 
     const resolved = rawParas.map((p) => {
-      const text = slide.text_fields?.[p.role ?? t.role] ?? ''
+      const rawText = slide.text_fields?.[p.role ?? t.role] ?? ''
+      const text = stripHighlightMarkers(rawText)
       const fontFamily = p.fontFamily ?? t.fontFamily
       const fontSize = p.fontSize ?? t.fontSize
       const fontWeight = p.fontWeight ?? t.fontWeight
       const lineHeight = p.lineHeight ?? t.lineHeight ?? 1.2
       const lines = text ? wrapText(text, textW, fontSize, fontFamily, fontWeight) : []
       return {
+        rawText,
         text,
         fontFamily,
         fontSize,
@@ -109,6 +117,8 @@ async function addElement(
         lineHeight,
         lines,
         lh: lineHeight * fontSize,
+        highlight: p.highlight ?? false,
+        highlightColor: p.highlightColor ?? '#FFE500',
       }
     })
 
@@ -174,6 +184,44 @@ async function addElement(
             listening: false,
           }))
         })
+      }
+
+      // Rough highlight rects (drawn before text so they appear behind)
+      if (p.highlight && hasHighlightMarkers(p.rawText)) {
+        const hRects = computeHighlightRects(
+          p.lines, p.rawText,
+          textX, curY, p.lh,
+          p.fontSize, p.fontFamily, p.fontWeight,
+          p.align, textW, measureTextWidth
+        )
+        if (hRects.length > 0) {
+          const PAD_H = 5
+          const PAD_V = 3
+          const hlColor = p.highlightColor
+          layer.add(new Konva.Shape({
+            listening: false,
+            opacity: t.opacity ?? 1,
+            sceneFunc: (ctx) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const nativeCtx = (ctx as any)._context as CanvasRenderingContext2D
+              const fakeCanvas = { getContext: () => nativeCtx } as unknown as HTMLCanvasElement
+              const rc = rough.canvas(fakeCanvas)
+              for (const r of hRects) {
+                rc.rectangle(
+                  r.x - PAD_H, r.y - PAD_V,
+                  r.w + PAD_H * 2, r.h + PAD_V * 2,
+                  {
+                    fill: hlColor,
+                    fillStyle: 'solid',
+                    roughness: 2,
+                    stroke: hlColor,
+                    strokeWidth: 1,
+                  }
+                )
+              }
+            },
+          }))
+        }
       }
 
       layer.add(new Konva.Text({

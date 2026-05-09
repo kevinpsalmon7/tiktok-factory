@@ -87,6 +87,7 @@ type GenerateArgs = {
   model?: string
   // Map of slide type → list of text roles (e.g., { title: ['title'], content: ['title', 'text'], cta: ['title', 'text', 'cta'] })
   rolesByType?: Record<string, string[]>
+  highlightRoles?: Record<string, string[]>
   images?: ImageInput[]
   log?: Logger
   carouselTag?: string
@@ -104,6 +105,7 @@ export async function generateCarousels({
   count = 1,
   model = 'claude-sonnet-4-5',
   rolesByType,
+  highlightRoles = {},
   images = [],
   log,
   carouselTag = '',
@@ -128,8 +130,12 @@ export async function generateCarousels({
   const slideTypesSpec = rolesByType
     ? Object.entries(rolesByType)
         .map(([st, roles]) => {
-          const rolesList = roles.length > 0 ? roles.join(', ') : '(aucun champ texte)'
-          return `  - "${st}" → text_fields keys: ${rolesList}`
+          const rolesList = roles.length > 0 ? roles.join(', ') : '(no text fields)'
+          const hlRoles = highlightRoles[st] ?? []
+          const hlNote = hlRoles.length > 0
+            ? `\n    [HIGHLIGHT ENABLED for: ${hlRoles.map(r => `"${r}"`).join(', ')} — wrap 1–3 emotionally charged words/phrases in ==...== markers, e.g. "The ==ADHD Tax== hits hardest"]`
+            : ''
+          return `  - "${st}" → text_fields keys: ${rolesList}${hlNote}`
         })
         .join('\n')
     : '  - "title", "content", "cta" → text_fields keys: title, text, cta'

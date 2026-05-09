@@ -88,8 +88,9 @@ export async function POST(request: Request) {
     )
   }
 
-  // Build the per-slide-type role map from the template layout.
+  // Build the per-slide-type role map and highlight-enabled roles from the template layout.
   const rolesByType: Record<string, string[]> = {}
+  const highlightRoles: Record<string, string[]> = {}
   for (const st of template.layout.slideTypes || []) rolesByType[st] = []
   for (const el of template.layout.elements || []) {
     if (el.type === 'text') {
@@ -101,6 +102,14 @@ export async function POST(request: Request) {
           : [textEl.role]
       for (const role of roles) {
         if (!rolesByType[el.slideType].includes(role)) rolesByType[el.slideType].push(role)
+      }
+      // Track which roles have highlight enabled
+      for (const p of textEl.paragraphs ?? []) {
+        if (p.highlight) {
+          const role = p.role ?? textEl.role
+          if (!highlightRoles[el.slideType]) highlightRoles[el.slideType] = []
+          if (!highlightRoles[el.slideType].includes(role)) highlightRoles[el.slideType].push(role)
+        }
       }
     }
   }
@@ -137,6 +146,7 @@ export async function POST(request: Request) {
       historyBlock,
       count: 1,
       rolesByType,
+      highlightRoles,
       images,
       log,
       carouselTag,

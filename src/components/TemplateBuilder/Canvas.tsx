@@ -1,9 +1,10 @@
 'use client'
 
-import { Stage, Layer, Rect, Text, Image as KonvaImage, Transformer, Group, Line } from 'react-konva'
+import { Stage, Layer, Rect, Text, Image as KonvaImage, Transformer, Group, Line, Shape } from 'react-konva'
 import type Konva from 'konva'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import useImage from 'use-image'
+import rough from 'roughjs'
 import type {
   TemplateLayout,
   TemplateElement,
@@ -12,6 +13,7 @@ import type {
   RectElement,
   TextParagraph,
 } from '@/types/database'
+import { computeHighlightRects } from '@/lib/highlight-utils'
 
 type SnapLine = { type: 'v' | 'h'; pos: number }
 
@@ -405,6 +407,8 @@ function resolveParagraphs(element: TextElement): Array<{
   color: string
   align: 'left' | 'center' | 'right'
   lineHeight: number
+  highlight: boolean
+  highlightColor: string
 }> {
   const def = {
     fontFamily: element.fontFamily,
@@ -426,6 +430,8 @@ function resolveParagraphs(element: TextElement): Array<{
     color: p.color ?? def.color,
     align: (p.align ?? def.align) as 'left' | 'center' | 'right',
     lineHeight: p.lineHeight ?? def.lineHeight,
+    highlight: p.highlight ?? false,
+    highlightColor: p.highlightColor ?? '#FFE500',
   }))
 }
 
@@ -502,6 +508,45 @@ function TextNode({
               />
             )
           })}
+          {/* Rough highlight preview (builder only — highlights the whole placeholder text) */}
+          {p.highlight && (() => {
+            const previewRects = computeHighlightRects(
+              lines, p.text,
+              textX, y, lh,
+              p.fontSize, p.fontFamily, p.fontWeight,
+              p.align, textW, measureTextWidth
+            )
+            // In builder mode the text has no ==...== so we fake one rect across all lines
+            const fallback = lines.map((line, li) => {
+              if (!line.trim()) return null
+              const lw = measureTextWidth(line, p.fontSize, p.fontFamily, p.fontWeight)
+              const ao = p.align === 'center' ? (textW - lw) / 2 : p.align === 'right' ? textW - lw : 0
+              return { x: textX + ao, y: y + li * lh, w: lw, h: lh }
+            }).filter(Boolean) as {x:number;y:number;w:number;h:number}[]
+            const rects = previewRects.length > 0 ? previewRects : fallback
+            if (rects.length === 0) return null
+            const PAD_H = 5; const PAD_V = 3
+            const hlColor = p.highlightColor
+            return (
+              <Shape
+                key="hl"
+                listening={false}
+                sceneFunc={(ctx) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const nativeCtx = (ctx as any)._context as CanvasRenderingContext2D
+                  const fakeCanvas = { getContext: () => nativeCtx } as unknown as HTMLCanvasElement
+                  const rc = rough.canvas(fakeCanvas)
+                  for (const r of rects) {
+                    rc.rectangle(
+                      r.x - PAD_H, r.y - PAD_V,
+                      r.w + PAD_H * 2, r.h + PAD_V * 2,
+                      { fill: hlColor, fillStyle: 'solid', roughness: 2, stroke: hlColor, strokeWidth: 1 }
+                    )
+                  }
+                }}
+              />
+            )
+          })()}
           {/* Text */}
           <Text
             x={textX} y={y} width={textW}
