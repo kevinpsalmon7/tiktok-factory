@@ -97,6 +97,17 @@ async function addElement(
       : [{ role: t.role as TextRole }]
 
     const resolved = rawParas.map((p) => {
+      // Pure spacer — no text, just vertical space
+      if (p.separatorHeight && p.separatorHeight > 0) {
+        return {
+          isSeparator: true as const,
+          spacerH: p.separatorHeight,
+          rawText: '', text: '', fontFamily: t.fontFamily, fontSize: t.fontSize,
+          fontWeight: t.fontWeight, color: t.color,
+          align: 'left' as const, lineHeight: 1.2,
+          lines: [] as string[], lh: 0, highlight: false, highlightColor: '#FFE500',
+        }
+      }
       const rawText = slide.text_fields?.[p.role ?? t.role] ?? ''
       const text = stripHighlightMarkers(rawText)
       const fontFamily = p.fontFamily ?? t.fontFamily
@@ -105,6 +116,8 @@ async function addElement(
       const lineHeight = p.lineHeight ?? t.lineHeight ?? 1.2
       const lines = text ? wrapText(text, textW, fontSize, fontFamily, fontWeight) : []
       return {
+        isSeparator: false as const,
+        spacerH: 0,
         rawText,
         text,
         fontFamily,
@@ -120,14 +133,18 @@ async function addElement(
       }
     })
 
-    const activeParas = resolved.filter((p) => p.text)
+    // Keep separators AND paragraphs that have text
+    const activeParas = resolved.filter((p) => p.isSeparator || p.text)
     if (activeParas.length === 0) return
 
     // Actual text height (no container padding)
-    const textH = activeParas.reduce(
-      (sum, p, i) => sum + p.lines.length * p.lh + (i < activeParas.length - 1 ? PARA_GAP : 0),
-      0
-    )
+    // PARA_GAP is only added between two consecutive text paragraphs
+    const textH = activeParas.reduce((sum, p, i) => {
+      const next = activeParas[i + 1]
+      if (p.isSeparator) return sum + p.spacerH
+      const gap = (!p.isSeparator && next && !next.isSeparator) ? PARA_GAP : 0
+      return sum + p.lines.length * p.lh + gap
+    }, 0)
     const contentH = textH + (bgMode === 'block' ? padding * 2 : 0)
 
     // Compute actualY based on growDirection (anchor point):
@@ -159,6 +176,11 @@ async function addElement(
 
     for (let pi = 0; pi < activeParas.length; pi++) {
       const p = activeParas[pi]
+      // Pure spacer — just advance the cursor
+      if (p.isSeparator) {
+        curY += p.spacerH
+        continue
+      }
       const isBold = String(p.fontWeight || 400).includes('7')
 
       // Inline background — one rect per wrapped line
@@ -238,7 +260,9 @@ async function addElement(
         listening: false,
       }))
 
-      curY += p.lines.length * p.lh + (pi < activeParas.length - 1 ? PARA_GAP : 0)
+      const next = activeParas[pi + 1]
+      const gap = next && !next.isSeparator ? PARA_GAP : 0
+      curY += p.lines.length * p.lh + gap
     }
     return
   }

@@ -152,6 +152,11 @@ export type TextParagraph = {
   highlight?: boolean
   /** Highlight fill color (default #FFE500) */
   highlightColor?: string
+  /**
+   * When set (> 0), this paragraph is a pure vertical spacer — no text is
+   * rendered. The value is the height in canvas pixels.
+   */
+  separatorHeight?: number
 }
 
 export interface BaseElement {

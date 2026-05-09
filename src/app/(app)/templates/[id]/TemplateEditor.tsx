@@ -1161,6 +1161,12 @@ function TextProperties({
     setSelIdx(next.length - 1)
   }
 
+  const addSeparator = () => {
+    const next = [...paragraphs, { separatorHeight: 20 }]
+    onChange({ paragraphs: next })
+    setSelIdx(next.length - 1)
+  }
+
   const removePara = (i: number) => {
     if (paragraphs.length <= 1) return
     const next = paragraphs.filter((_, idx) => idx !== i)
@@ -1177,8 +1183,10 @@ function TextProperties({
     setSelIdx(to)
   }
 
-  const paraRoleLabel = (p: TextParagraph) =>
-    ROLE_OPTIONS.find((r) => r.value === (p.role ?? element.role))?.label ?? '—'
+  const paraRoleLabel = (p: TextParagraph) => {
+    if (p.separatorHeight) return `── ${p.separatorHeight}px ──`
+    return ROLE_OPTIONS.find((r) => r.value === (p.role ?? element.role))?.label ?? '—'
+  }
 
   const effFontSize = sel.fontSize ?? element.fontSize
   const effWeight = String(sel.fontWeight ?? element.fontWeight ?? 400)
@@ -1244,12 +1252,21 @@ function TextProperties({
       <div>
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] uppercase tracking-wide text-ink-600 font-medium">Placeholders</span>
-          <button
-            onClick={addPara}
-            className="text-[10px] px-2 py-0.5 rounded bg-cream-100 hover:bg-cream-200 text-ink-700"
-          >
-            + Ajouter
-          </button>
+          <div className="flex gap-1">
+            <button
+              onClick={addPara}
+              className="text-[10px] px-2 py-0.5 rounded bg-cream-100 hover:bg-cream-200 text-ink-700"
+            >
+              + Texte
+            </button>
+            <button
+              onClick={addSeparator}
+              className="text-[10px] px-2 py-0.5 rounded bg-cream-100 hover:bg-cream-200 text-ink-700"
+              title="Ajouter un espace vide entre deux placeholders"
+            >
+              + Espace
+            </button>
+          </div>
         </div>
         <div className="flex flex-col gap-1">
           {paragraphs.map((p, i) => (
@@ -1293,6 +1310,16 @@ function TextProperties({
         <div className="text-[10px] uppercase tracking-wide text-ink-600 font-medium">
           Placeholder {clampedIdx + 1} / {paragraphs.length}
         </div>
+
+        {/* Separator editor */}
+        {sel.separatorHeight !== undefined ? (
+          <NumberField
+            label="Hauteur (px)"
+            value={sel.separatorHeight}
+            onChange={(v) => updatePara({ separatorHeight: Math.max(0, Math.round(v)) })}
+          />
+        ) : (<>
+
         <div>
           <label className="block text-[10px] text-ink-600 mb-0.5">Rôle</label>
           <select
@@ -1371,6 +1398,7 @@ function TextProperties({
             ))}
           </div>
         </div>
+        </>)}
       </div>
     </>
   )

@@ -398,18 +398,24 @@ function ElementNode({
   return null
 }
 
+type ResolvedParagraph =
+  | {
+      isSeparator: true
+      spacerH: number
+      text: string; fontFamily: string; fontSize: number; fontWeight: number | string
+      color: string; align: 'left' | 'center' | 'right'; lineHeight: number
+      highlight: boolean; highlightColor: string
+    }
+  | {
+      isSeparator: false
+      spacerH: 0
+      text: string; fontFamily: string; fontSize: number; fontWeight: number | string
+      color: string; align: 'left' | 'center' | 'right'; lineHeight: number
+      highlight: boolean; highlightColor: string
+    }
+
 // Resolve element.paragraphs (rich) or fall back to a single legacy paragraph.
-function resolveParagraphs(element: TextElement): Array<{
-  text: string
-  fontFamily: string
-  fontSize: number
-  fontWeight: number | string
-  color: string
-  align: 'left' | 'center' | 'right'
-  lineHeight: number
-  highlight: boolean
-  highlightColor: string
-}> {
+function resolveParagraphs(element: TextElement): ResolvedParagraph[] {
   const def = {
     fontFamily: element.fontFamily,
     fontSize: element.fontSize,
@@ -422,17 +428,30 @@ function resolveParagraphs(element: TextElement): Array<{
     element.paragraphs && element.paragraphs.length > 0
       ? element.paragraphs
       : [{ text: element.placeholder || roleLabel(element.role) }]
-  return src.map((p) => ({
-    text: p.role ? roleLabel(p.role) : (p.text ?? roleLabel(element.role)),
-    fontFamily: p.fontFamily ?? def.fontFamily,
-    fontSize: p.fontSize ?? def.fontSize,
-    fontWeight: p.fontWeight ?? def.fontWeight,
-    color: p.color ?? def.color,
-    align: (p.align ?? def.align) as 'left' | 'center' | 'right',
-    lineHeight: p.lineHeight ?? def.lineHeight,
-    highlight: p.highlight ?? false,
-    highlightColor: p.highlightColor ?? '#FFE500',
-  }))
+  return src.map((p) => {
+    if (p.separatorHeight && p.separatorHeight > 0) {
+      return {
+        isSeparator: true as const,
+        spacerH: p.separatorHeight,
+        text: '', fontFamily: def.fontFamily, fontSize: def.fontSize, fontWeight: def.fontWeight,
+        color: def.color, align: def.align, lineHeight: def.lineHeight,
+        highlight: false, highlightColor: '#FFE500',
+      }
+    }
+    return {
+      isSeparator: false as const,
+      spacerH: 0 as const,
+      text: p.role ? roleLabel(p.role) : (p.text ?? roleLabel(element.role)),
+      fontFamily: p.fontFamily ?? def.fontFamily,
+      fontSize: p.fontSize ?? def.fontSize,
+      fontWeight: p.fontWeight ?? def.fontWeight,
+      color: p.color ?? def.color,
+      align: (p.align ?? def.align) as 'left' | 'center' | 'right',
+      lineHeight: p.lineHeight ?? def.lineHeight,
+      highlight: p.highlight ?? false,
+      highlightColor: p.highlightColor ?? '#FFE500',
+    }
+  })
 }
 
 function TextNode({
@@ -456,10 +475,16 @@ function TextNode({
   let curY = bgMode === 'block' ? padding : 0
 
   const items = paras.map((p, i) => {
+    if (p.isSeparator) {
+      const y = curY
+      curY += p.spacerH
+      return { p, lines: [] as string[], lh: 0, y }
+    }
     const lines = wrapText(p.text, textW, p.fontSize, p.fontFamily, p.fontWeight)
     const lh = p.lineHeight * p.fontSize
     const y = curY
-    curY += lines.length * lh + (i < paras.length - 1 ? PARA_GAP : 0)
+    const next = paras[i + 1]
+    curY += lines.length * lh + (next && !next.isSeparator ? PARA_GAP : 0)
     return { p, lines, lh, y }
   })
 
@@ -491,6 +516,7 @@ function TextNode({
       {/* Paragraphs */}
       {items.map(({ p, lines, lh, y }, pi) => (
         <Fragment key={pi}>
+          {p.isSeparator ? null : <>
           {/* Inline bg — one rect per wrapped line, padding = visual margin */}
           {element.backgroundColor && bgMode === 'inline' && lines.map((line, li) => {
             if (!line.trim()) return null
@@ -560,6 +586,7 @@ function TextNode({
             verticalAlign="top"
             listening={false}
           />
+          </>}
         </Fragment>
       ))}
     </Group>

@@ -98,7 +98,9 @@ export async function POST(request: Request) {
       if (!rolesByType[el.slideType]) rolesByType[el.slideType] = []
       const roles: string[] =
         textEl.paragraphs && textEl.paragraphs.length > 0
-          ? textEl.paragraphs.map((p) => p.role ?? textEl.role)
+          ? textEl.paragraphs
+              .filter((p) => !p.separatorHeight)  // skip pure spacers
+              .map((p) => p.role ?? textEl.role)
           : [textEl.role]
       for (const role of roles) {
         if (!rolesByType[el.slideType].includes(role)) rolesByType[el.slideType].push(role)
