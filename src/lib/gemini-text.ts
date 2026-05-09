@@ -162,6 +162,12 @@ ${carouselInstructions}
 For each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.
 ${slideTypesSpec}
 
+HIGHLIGHT RULES — MANDATORY, NO EXCEPTIONS:
+- For every text role marked [HIGHLIGHT ENABLED], you MUST include ==...== markers in the text.
+- Every such field MUST contain at least one ==highlighted passage==.
+- If a field is marked [HIGHLIGHT ENABLED] and you produce text without any ==...== markers, the output is INVALID.
+- Choose the 1 to 3 most emotionally resonant words or short phrases and wrap them: ==like this==.
+
 Allowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.
 
 Return ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.
@@ -169,8 +175,8 @@ Return ONLY a valid JSON array with exactly ${count} object(s). No markdown, no 
 Each carousel object must have:
 {
   "carousel_type": "<brief description>",
-  "image_prompt_title": "<POSE/FRAMING/ANGLE only — close-up portrait, no setting, no action, no props. Strictly follow image prompt rules in carousel instructions. Must differ in pose AND hair colour from image_prompt_content.>",
-  "image_prompt_content": "<Topic-related, brief, evocative — always a woman, different pose AND different hair colour from image_prompt_title. Strictly follow image prompt rules in carousel instructions.>",
+  "image_prompt_title": "<Full-body character — entire figure from head to toe visible, no cropping. No setting, no props, pure white background. Strictly follow image prompt rules in carousel instructions. Different pose AND hair colour from image_prompt_content.>",
+  "image_prompt_content": "<Topic-related, brief, evocative — always a woman, different pose AND different hair colour from image_prompt_title. No setting, pure white background. Strictly follow image prompt rules in carousel instructions.>",
   "slides": [
     {
       "index": 1,
@@ -184,7 +190,7 @@ Each carousel object must have:
 IMPORTANT:
 - "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.
 - "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty.
-- image_prompt_title: pose/framing/angle ONLY (no setting, no action, no props). Max 20 words.
+- image_prompt_title: full-body framing ONLY (no setting, no action, no props, no background). Max 20 words.
 - image_prompt_content: must relate to the carousel topic. Max 20 words.
 - The two prompts MUST use different poses AND different hair colours.
 - There is NO illustration_prompt on individual slides.
