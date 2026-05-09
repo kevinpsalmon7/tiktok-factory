@@ -76,6 +76,11 @@ User request: "${prompt.replace(/"/g, "'")}"`
   }
 }
 
+export type ImageInput = {
+  base64: string
+  mimeType: string
+}
+
 type GenerateArgs = {
   apiKey: string
   styleGuide: string
@@ -87,6 +92,7 @@ type GenerateArgs = {
   count?: number
   model?: string
   rolesByType?: Record<string, string[]>
+  images?: ImageInput[]
   log?: Logger
   carouselTag?: string
 }
@@ -102,6 +108,7 @@ export async function generateCarousels({
   count = 1,
   model = 'gemini-2.5-flash',
   rolesByType,
+  images = [],
   log,
   carouselTag = '',
 }: GenerateArgs) {
@@ -173,13 +180,21 @@ IMPORTANT:
 
   const userMessage = `${masterBlock}${avatarBlock}${historyBl}${userBlock}Generate exactly ${count} carousel(s).`
 
+  const imageParts = images.map(img => ({
+    inlineData: { mimeType: img.mimeType, data: img.base64 },
+  }))
+  const imagesNote = images.length > 0
+    ? `\n\nREFERENCE IMAGES: ${images.length} image(s) attached. Extract or adapt text from them as instructed by the user.`
+    : ''
+
   await log?.({
     step: `gemini.carousel.request${carouselTag ? '.' + carouselTag : ''}`,
-    message: `generateCarousels: prompt sent to Gemini (${count} carousel(s))`,
+    message: `generateCarousels: prompt sent to Gemini (${count} carousel(s), ${images.length} image(s))`,
     payload: {
       model,
       count,
       tag: carouselTag,
+      imageCount: images.length,
       systemInstruction,
       userMessage,
     },
@@ -187,7 +202,13 @@ IMPORTANT:
 
   const response = await ai.models.generateContent({
     model,
-    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+    contents: [{
+      role: 'user',
+      parts: [
+        ...imageParts,
+        { text: userMessage + imagesNote },
+      ],
+    }],
     config: {
       systemInstruction,
       responseMimeType: 'application/json',

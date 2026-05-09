@@ -2,10 +2,38 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Sparkles, Loader2, Check, X, ArrowRight, StopCircle } from 'lucide-react'
+import { Sparkles, Loader2, Check, X, ArrowRight, StopCircle, ImagePlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { renderSlideToDataUrl, ensureFontsLoaded } from '@/lib/konva-render'
 import type { CarouselSlide, TemplateLayout } from '@/types/database'
+
+type UploadedImage = { base64: string; mimeType: string; preview: string }
+const MAX_IMAGES = 10
+
+async function compressImage(file: File): Promise<UploadedImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = reject
+    reader.onload = (e) => {
+      const img = new window.Image()
+      img.onerror = reject
+      img.onload = () => {
+        const MAX = 1024
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8)
+        resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg', preview: dataUrl })
+      }
+      img.src = e.target!.result as string
+    }
+    reader.readAsDataURL(file)
+  })
+}
 
 type Template = { id: string; name: string; layout: TemplateLayout }
 type CarouselStatus =
@@ -61,6 +89,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     return 'gemini'
   })
   const [prompt, setPrompt] = useState('')
+  const [images, setImages] = useState<UploadedImage[]>([])
   const [loading, setLoading] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [carouselStates, setCarouselStates] = useState<CarouselState[]>([])
@@ -113,6 +142,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         runId,
         historyBlock,
         carouselTag: String(idx + 1),
+        images: images.map(({ base64, mimeType }) => ({ base64, mimeType })),
       }),
       signal: ac.signal,
     })
@@ -415,6 +445,12 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
             />
           </div>
 
+          <ImageUploadZone
+            images={images}
+            disabled={loading}
+            onChange={setImages}
+          />
+
           <button onClick={handleGenerate} disabled={loading}
             className="inline-flex items-center gap-2 px-5 py-3 bg-ink-900 text-white rounded-full text-sm font-medium hover:bg-ink-800 disabled:opacity-50 shadow-card">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
@@ -493,6 +529,92 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function ImageUploadZone({
+  images,
+  disabled,
+  onChange,
+}: {
+  images: UploadedImage[]
+  disabled: boolean
+  onChange: (imgs: UploadedImage[]) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [dragging, setDragging] = useState(false)
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || disabled) return
+    const remaining = MAX_IMAGES - images.length
+    if (remaining <= 0) return
+    const toProcess = Array.from(files).slice(0, remaining)
+    const compressed = await Promise.all(toProcess.map(compressImage))
+    onChange([...images, ...compressed])
+  }
+
+  function removeImage(idx: number) {
+    onChange(images.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-xs text-ink-600">
+        Images de référence
+        <span className="ml-1 text-ink-400">(optionnel — {images.length}/{MAX_IMAGES})</span>
+      </label>
+
+      {/* Thumbnail strip */}
+      {images.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {images.map((img, i) => (
+            <div key={i} className="relative group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.preview}
+                alt={`ref ${i + 1}`}
+                className="h-16 w-12 object-cover rounded-lg border border-cream-200"
+              />
+              <button
+                type="button"
+                onClick={() => removeImage(i)}
+                className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-ink-900 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+              >
+                <X size={9} strokeWidth={3} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Drop zone */}
+      {images.length < MAX_IMAGES && (
+        <div
+          onDragOver={e => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }}
+          onClick={() => !disabled && inputRef.current?.click()}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition text-sm select-none
+            ${dragging
+              ? 'border-ink-400 bg-cream-100 text-ink-800'
+              : 'border-cream-200 text-ink-500 hover:border-ink-300 hover:text-ink-700'}
+            ${disabled ? 'opacity-40 cursor-default' : ''}
+          `}
+        >
+          <ImagePlus size={15} />
+          <span>Glisser des captures ou cliquer pour parcourir</span>
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={e => handleFiles(e.target.files)}
+      />
     </div>
   )
 }

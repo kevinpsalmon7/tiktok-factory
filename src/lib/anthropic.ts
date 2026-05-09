@@ -69,6 +69,11 @@ export async function extractIntent(prompt: string, apiKey: string, log?: Logger
   }
 }
 
+export type ImageInput = {
+  base64: string
+  mimeType: string
+}
+
 type GenerateArgs = {
   apiKey: string
   styleGuide: string
@@ -81,6 +86,7 @@ type GenerateArgs = {
   model?: string
   // Map of slide type → list of text roles (e.g., { title: ['title'], content: ['title', 'text'], cta: ['title', 'text', 'cta'] })
   rolesByType?: Record<string, string[]>
+  images?: ImageInput[]
   log?: Logger
   carouselTag?: string
 }
@@ -96,6 +102,7 @@ export async function generateCarousels({
   count = 1,
   model = 'claude-sonnet-4-5',
   rolesByType,
+  images = [],
   log,
   carouselTag = '',
 }: GenerateArgs) {
@@ -124,13 +131,30 @@ export async function generateCarousels({
 
   const prompt = `${masterBlock}${avatarBlock}${historyBl}${userBlock}Tu génères du contenu pour des carousels TikTok/Instagram.\n\nPUNCTUATION RULES — ZERO TOLERANCE:\n- FORBIDDEN: em dash "—". Replace with period or line break.\n- FORBIDDEN: "---" as separator.\n- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).\n\nGenerate exactly ${count} carousel(s). Each must follow the style and structure below.\n\n--- STYLE GUIDE ---\n${styleGuide}\n\n--- CAROUSEL INSTRUCTIONS ---\n${carouselInstructions}\n\n--- AVAILABLE SLIDE TYPES ---\nFor each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.\n${slideTypesSpec}\n\nAllowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.\n\nReturn ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.\n\nEach carousel object must have:\n{\n  "carousel_type": "<brief description>",\n  "image_prompt_title": "<POSE/FRAMING/ANGLE only — close-up portrait, no setting, no action, no props. Strictly follow image prompt rules in carousel instructions. Must differ in pose AND hair colour from image_prompt_content.>",\n  "image_prompt_content": "<Topic-related, brief, evocative — always a woman, different pose AND different hair colour from image_prompt_title. Strictly follow image prompt rules in carousel instructions.>",\n  "slides": [\n    {\n      "index": 1,\n      "slide_type": "<one of the allowed values above>",\n      "text_fields": { "<role>": "<copy>", ... }\n    },\n    ...\n  ]\n}\n\nIMPORTANT:\n- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.\n- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty.\n- image_prompt_title: pose/framing/angle ONLY (no setting, no action, no props). Max 20 words.\n- image_prompt_content: must relate to the carousel topic. Max 20 words.\n- The two prompts MUST use different poses AND different hair colours.\n- There is NO illustration_prompt on individual slides.\n- All text in "text_fields" is what will be rendered on the slide.\n`
 
+  const imagesNote = images.length > 0
+    ? `\n\nREFERENCE IMAGES: ${images.length} image(s) attached. Extract or adapt text from them as instructed by the user.`
+    : ''
+
+  type MediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+  type ImageBlock = { type: 'image'; source: { type: 'base64'; media_type: MediaType; data: string } }
+  type TextBlock = { type: 'text'; text: string }
+  const imageBlocks: ImageBlock[] = images.map(img => ({
+    type: 'image' as const,
+    source: { type: 'base64' as const, media_type: img.mimeType as MediaType, data: img.base64 },
+  }))
+  const messageContent: (ImageBlock | TextBlock)[] = [
+    ...imageBlocks,
+    { type: 'text' as const, text: prompt + imagesNote },
+  ]
+
   await log?.({
     step: `claude.carousel.request${carouselTag ? '.' + carouselTag : ''}`,
-    message: `generateCarousels: full prompt sent to Claude (${count} carousel(s))`,
+    message: `generateCarousels: full prompt sent to Claude (${count} carousel(s), ${images.length} image(s))`,
     payload: {
       model,
       count,
       tag: carouselTag,
+      imageCount: images.length,
       blocks: {
         masterInstructions,
         avatarInstructions,
@@ -147,7 +171,7 @@ export async function generateCarousels({
   const message = await client.messages.create({
     model,
     max_tokens: 4096,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: 'user', content: messageContent }],
   })
 
   const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''

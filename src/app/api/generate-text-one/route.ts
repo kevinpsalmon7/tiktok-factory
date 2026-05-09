@@ -53,6 +53,7 @@ export async function POST(request: Request) {
     runId: incomingRunId,
     historyBlock = '',
     carouselTag = '',
+    images = [],
   } = body as {
     templateId: string
     prompt?: string
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
     runId?: string
     historyBlock?: string
     carouselTag?: string
+    images?: { base64: string; mimeType: string }[]
   }
 
   const runId = incomingRunId || randomUUID()
@@ -130,6 +132,7 @@ export async function POST(request: Request) {
       historyBlock,
       count: 1,
       rolesByType,
+      images,
       log,
       carouselTag,
     })
