@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateImage } from '@/lib/openai'
 import { createLogger } from '@/lib/logger'
+import { resolveChoices } from '@/lib/resolve-choices'
 import { randomUUID } from 'crypto'
 
 // gpt-image-2 can take 60-180s; set to Vercel Pro max.
@@ -112,11 +113,12 @@ export async function POST(request: Request) {
     const sharp = require('sharp')
 
     const colorBlock = buildColorBlock()
+    const resolvedStyle = resolveChoices(template.gemini_instructions)
     await log({ step: 'image.color', message: `random background color injected`, payload: { colorBlock } })
 
     const rawBytes = await generateImage({
       apiKey,
-      styleInstructions: template.gemini_instructions + colorBlock,
+      styleInstructions: resolvedStyle + colorBlock,
       illustrationPrompt,
       referenceImages,
       slideType,

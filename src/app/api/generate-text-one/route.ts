@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { generateCarousels as generateCarouselsGemini } from '@/lib/gemini-text'
 import { generateCarousels as generateCarouselsClaude } from '@/lib/anthropic'
 import { createLogger } from '@/lib/logger'
+import { resolveChoices } from '@/lib/resolve-choices'
 import { randomUUID } from 'crypto'
 
 function pick<T>(arr: T[]): T {
@@ -122,12 +123,28 @@ export async function POST(request: Request) {
     const imageChoices = buildImageChoicesBlock()
     await log({ step: 'text_one.image_choices', message: 'randomized image choices injected', payload: { imageChoices } })
 
+    // Resolve [[option1 | option2 (weight%)]] markers in all instruction fields
+    const resolvedCarouselInstructions = resolveChoices(template.carousel_instructions)
+    const resolvedStyleGuide = resolveChoices(template.style_guide)
+    const resolvedMaster = profile?.master_instructions ? resolveChoices(profile.master_instructions) : undefined
+    const resolvedAvatar = resolveChoices(template.avatar_instructions || profile?.avatar_instructions || '')
+
+    await log({
+      step: 'text_one.resolve_choices',
+      message: 'resolved [[...]] markers in instructions',
+      payload: {
+        carouselChanged: resolvedCarouselInstructions !== template.carousel_instructions,
+        styleChanged: resolvedStyleGuide !== template.style_guide,
+        masterChanged: resolvedMaster !== profile?.master_instructions,
+      },
+    })
+
     const carousels = await generateCarousels({
       apiKey,
-      styleGuide: template.style_guide,
-      carouselInstructions: template.carousel_instructions,
-      masterInstructions: profile?.master_instructions,
-      avatarInstructions: template.avatar_instructions || profile?.avatar_instructions,
+      styleGuide: resolvedStyleGuide,
+      carouselInstructions: resolvedCarouselInstructions,
+      masterInstructions: resolvedMaster,
+      avatarInstructions: resolvedAvatar,
       userPrompt: (userPrompt || '') + imageChoices,
       historyBlock,
       count: 1,
