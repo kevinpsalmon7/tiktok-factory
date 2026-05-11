@@ -10,7 +10,7 @@ import { randomUUID } from 'crypto'
 export const maxDuration = 300
 
 type ProfileRow = { openai_api_key: string | null; gemini_api_key: string | null }
-type TemplateRow = { gemini_instructions: string; randomization_instructions: string }
+type TemplateRow = { gemini_instructions: string; randomization_instructions: string; layout: { elements: { type: string; slideType: string; source?: string; width: number; height: number }[] } }
 type ReferenceRow = { storage_path: string }
 
 export async function POST(request: Request) {
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
   const { data: template } = await supabase
     .from('templates')
-    .select('gemini_instructions, randomization_instructions')
+    .select('gemini_instructions, randomization_instructions, layout')
     .eq('id', templateId)
     .eq('user_id', user.id)
     .single<TemplateRow>()
@@ -98,6 +98,27 @@ export async function POST(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const sharp = require('sharp')
 
+    // Derive image dimensions from the template layout element for this slideType
+    const imageEl = template.layout?.elements?.find(
+      (el) => el.type === 'image' && el.source === 'generated' && el.slideType === slideType
+    )
+    const elW = imageEl?.width ?? 1080
+    const elH = imageEl?.height ?? 1920
+    const ratio = elW / elH
+
+    // Pick the closest OpenAI size and Gemini aspectRatio
+    let openaiSize: '1024x1024' | '1024x1536' | '1536x1024'
+    let geminiAspectRatio: '1:1' | '9:16' | '16:9' | '3:4' | '4:3'
+    let resizeW: number
+    let resizeH: number
+    if (ratio > 1.2) {
+      openaiSize = '1536x1024'; geminiAspectRatio = '16:9'; resizeW = 1920; resizeH = 1080
+    } else if (ratio < 0.8) {
+      openaiSize = '1024x1536'; geminiAspectRatio = '9:16'; resizeW = 1080; resizeH = 1920
+    } else {
+      openaiSize = '1024x1024'; geminiAspectRatio = '1:1'; resizeW = 1080; resizeH = 1080
+    }
+
     const resolvedStyle = resolveChoices(template.gemini_instructions)
     const resolvedRandomization = resolveChoices(template.randomization_instructions || '')
     await log({ step: 'image.randomization', message: 'randomization_instructions resolved', payload: { resolvedRandomization } })
@@ -109,6 +130,7 @@ export async function POST(request: Request) {
           illustrationPrompt,
           slideType,
           quality: imageQuality ?? 'low',
+          aspectRatio: geminiAspectRatio,
           log,
         })
       : await generateImageOpenAI({
@@ -118,12 +140,13 @@ export async function POST(request: Request) {
           referenceImages,
           slideType,
           quality: imageQuality ?? 'low',
+          imageSize: openaiSize,
           log,
         })
 
-    // Resize to 1080×1920 (9:16)
+    // Resize to match the image element's aspect ratio
     const imageBytes: Buffer = await sharp(rawBytes)
-      .resize(1080, 1920, { fit: 'cover', position: 'centre' })
+      .resize(resizeW, resizeH, { fit: 'cover', position: 'centre' })
       .jpeg({ quality: 92 })
       .toBuffer()
 

@@ -6,6 +6,7 @@ type GenerateImageArgs = {
   styleInstructions: string
   illustrationPrompt: string
   quality?: 'low' | 'medium' | 'high'
+  aspectRatio?: '1:1' | '9:16' | '16:9' | '3:4' | '4:3'
   slideType?: string
   log?: Logger
 }
@@ -40,6 +41,7 @@ export async function generateImage({
   styleInstructions,
   illustrationPrompt,
   quality = 'low',
+  aspectRatio = '1:1',
   slideType,
   log,
 }: GenerateImageArgs): Promise<Buffer> {
@@ -50,8 +52,8 @@ export async function generateImage({
 
   await log?.({
     step: `gemini.image.request.${slideType || 'unknown'}`,
-    message: `Gemini Imagen — model=${model} slide_type=${slideType || 'unknown'}`,
-    payload: { model, quality, slideType, fullPrompt },
+    message: `Gemini Imagen — model=${model} slide_type=${slideType || 'unknown'} aspectRatio=${aspectRatio}`,
+    payload: { model, quality, slideType, aspectRatio, fullPrompt },
   })
 
   const startedAt = Date.now()
@@ -61,7 +63,7 @@ export async function generateImage({
     prompt: fullPrompt,
     config: {
       numberOfImages: 1,
-      aspectRatio: '9:16',
+      aspectRatio,
       outputMimeType: 'image/png',
       personGeneration: PersonGeneration.ALLOW_ALL,
     },

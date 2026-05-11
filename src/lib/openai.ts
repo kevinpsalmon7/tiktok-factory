@@ -17,6 +17,7 @@ type GenerateImageArgs = {
   slideType?: SlideType
   model?: string
   quality?: 'low' | 'medium' | 'high'
+  imageSize?: '1024x1024' | '1024x1536' | '1536x1024'
   log?: Logger
 }
 
@@ -54,6 +55,7 @@ export async function generateImage({
   slideType,
   model = 'gpt-image-2',
   quality = 'low',
+  imageSize = '1024x1024',
   log,
 }: GenerateImageArgs): Promise<Buffer> {
   const client = new OpenAI({ apiKey })
@@ -93,7 +95,7 @@ export async function generateImage({
     // when we have multiple references, or a single file otherwise.
     image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
     prompt: fullPrompt,
-    size: '1024x1536',
+    size: imageSize,
     quality,
     n: 1,
   })

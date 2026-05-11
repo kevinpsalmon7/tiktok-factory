@@ -181,8 +181,16 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     const carouselId: string = newRow.id
     updateCarousel(idx, { id: carouselId, status: 'images' })
 
-    // 3. Generate both images in parallel
-    async function fetchImg(imgPrompt: string, slideIndex: number, slideType: 'title' | 'content'): Promise<string> {
+    // 3. Generate images only for slide types that have a generated image element
+    const generatedImageSlideTypes = new Set(
+      (selectedTemplate.layout.elements ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((el: any) => el.type === 'image' && el.source === 'generated')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((el: any) => el.slideType as string)
+    )
+
+    async function fetchImg(imgPrompt: string, slideIndex: number, slideType: string): Promise<string> {
       if (!imgPrompt) return ''
       const res = await fetch('/api/generate-image', {
         method: 'POST',
@@ -198,16 +206,28 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       return url
     }
 
-    const [titleBg, contentBg] = await Promise.all([
-      fetchImg(carousel.image_prompt_title || '', 1, 'title'),
-      fetchImg(carousel.image_prompt_content || '', 2, 'content'),
-    ])
+    // Map slide type → image prompt from the carousel LLM output
+    const imagePromptByType: Record<string, string> = {
+      title: carousel.image_prompt_title || '',
+      content: carousel.image_prompt_content || '',
+    }
+
+    // Only fetch images for slide types that have a generated image element
+    const imageByType: Record<string, string> = {}
+    await Promise.all(
+      [...generatedImageSlideTypes].map(async (st, i) => {
+        const prompt = imagePromptByType[st] || ''
+        if (!prompt) return
+        const url = await fetchImg(prompt, i + 1, st)
+        if (url) imageByType[st] = url
+      })
+    )
 
     if (stoppedRef.current.has(idx) || stopAllRef.current) throw new Error('cancelled')
 
     const updatedSlides: CarouselSlide[] = slides.map(s => ({
       ...s,
-      background_url: s.index === 1 ? (titleBg || undefined) : (contentBg || undefined),
+      background_url: imageByType[s.slide_type] ?? undefined,
     }))
 
     // 4. Render + upload slides
