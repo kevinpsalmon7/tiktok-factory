@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
-  const { templateId, illustrationPrompt, carouselId, slideIndex, slideType, runId: incomingRunId, imageQuality, imageLlm } = body as {
+  const { templateId, illustrationPrompt, carouselId, slideIndex, slideType, runId: incomingRunId, imageQuality, imageLlm, imageFormat } = body as {
     templateId: string
     illustrationPrompt: string
     carouselId: string
@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     runId?: string
     imageQuality?: 'low' | 'medium' | 'high'
     imageLlm?: 'openai' | 'gemini'
+    imageFormat?: '1:1' | '9:16'
   }
 
   const runId = incomingRunId || randomUUID()
@@ -98,26 +99,12 @@ export async function POST(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const sharp = require('sharp')
 
-    // Derive image dimensions from the template layout element for this slideType
-    const imageEl = template.layout?.elements?.find(
-      (el) => el.type === 'image' && el.source === 'generated' && el.slideType === slideType
-    )
-    const elW = imageEl?.width ?? 1080
-    const elH = imageEl?.height ?? 1920
-    const ratio = elW / elH
-
-    // Pick the closest OpenAI size and Gemini aspectRatio
-    let openaiSize: '1024x1024' | '1024x1536' | '1536x1024'
-    let geminiAspectRatio: '1:1' | '9:16' | '16:9' | '3:4' | '4:3'
-    let resizeW: number
-    let resizeH: number
-    if (ratio > 1.2) {
-      openaiSize = '1536x1024'; geminiAspectRatio = '16:9'; resizeW = 1920; resizeH = 1080
-    } else if (ratio < 0.8) {
-      openaiSize = '1024x1536'; geminiAspectRatio = '9:16'; resizeW = 1080; resizeH = 1920
-    } else {
-      openaiSize = '1024x1024'; geminiAspectRatio = '1:1'; resizeW = 1080; resizeH = 1080
-    }
+    // Pick size/ratio based on user-selected imageFormat (default 1:1)
+    const fmt = imageFormat ?? '1:1'
+    const openaiSize: '1024x1024' | '1024x1536' = fmt === '9:16' ? '1024x1536' : '1024x1024'
+    const geminiAspectRatio: '1:1' | '9:16' = fmt === '9:16' ? '9:16' : '1:1'
+    const resizeW = fmt === '9:16' ? 1080 : 1080
+    const resizeH = fmt === '9:16' ? 1920 : 1080
 
     const resolvedStyle = resolveChoices(template.gemini_instructions)
     const resolvedRandomization = resolveChoices(template.randomization_instructions || '')

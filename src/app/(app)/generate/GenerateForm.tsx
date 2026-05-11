@@ -96,6 +96,10 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     if (typeof window !== 'undefined') return (localStorage.getItem('preferredImageQuality') as 'low' | 'medium' | 'high') || 'low'
     return 'low'
   })
+  const [imageFormat, setImageFormat] = useState<'1:1' | '9:16'>(() => {
+    if (typeof window !== 'undefined') return (localStorage.getItem('preferredImageFormat') as '1:1' | '9:16') || '1:1'
+    return '1:1'
+  })
   const [prompt, setPrompt] = useState('')
   const [images, setImages] = useState<UploadedImage[]>([])
   const [loading, setLoading] = useState(false)
@@ -195,7 +199,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt, slideType, runId, imageQuality, imageLlm }),
+        body: JSON.stringify({ templateId, carouselId, slideIndex, illustrationPrompt: imgPrompt, slideType, runId, imageQuality, imageLlm, imageFormat }),
         signal: ac.signal,
       })
       if (!res.ok) {
@@ -468,6 +472,20 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
                 <button key={value}
                   onClick={() => { setImageLlm(value); localStorage.setItem('preferredImageLlm', value) }}
                   className={`px-4 py-2 rounded-full text-sm transition ${imageLlm === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* Format */}
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[11px] text-ink-500">Format</span>
+              {([
+                { value: '1:1',  label: '1:1' },
+                { value: '9:16', label: '9:16' },
+              ] as const).map(({ value, label }) => (
+                <button key={value}
+                  onClick={() => { setImageFormat(value); localStorage.setItem('preferredImageFormat', value) }}
+                  className={`px-3 py-1.5 rounded-full text-xs transition ${imageFormat === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
                   {label}
                 </button>
               ))}
