@@ -70,27 +70,54 @@ export function computeHighlightRects(
 ): HighlightRect[] {
   const rects: HighlightRect[] = []
   const segments = parseHighlightSegments(originalText)
-  const highlightedTexts = segments.filter((s) => s.highlighted).map((s) => s.text)
-  if (highlightedTexts.length === 0) return rects
+  if (!segments.some((s) => s.highlighted)) return rects
+
+  // Full stripped text — lines are substrings of this
+  const fullText = segments.map((s) => s.text).join('')
+
+  // Build a sorted array of highlighted char ranges in fullText
+  type Range = { start: number; end: number }
+  const hlRanges: Range[] = []
+  let pos = 0
+  for (const seg of segments) {
+    if (seg.highlighted) hlRanges.push({ start: pos, end: pos + seg.text.length })
+    pos += seg.text.length
+  }
+
+  // Walk lines sequentially through fullText so each line's offset is known
+  let searchFrom = 0
 
   lines.forEach((line, li) => {
     if (!line.trim()) return
+
+    const lineStart = fullText.indexOf(line, searchFrom)
+    if (lineStart === -1) return
+    const lineEnd = lineStart + line.length
+    searchFrom = lineEnd
+
     const lineW = measureFn(line, fontSize, fontFamily, fontWeight)
     const alignOffset =
       align === 'center' ? (availWidth - lineW) / 2 : align === 'right' ? availWidth - lineW : 0
     const lineY = startY + li * lineHeight
 
-    for (const hlText of highlightedTexts) {
-      const idx = line.indexOf(hlText)
-      if (idx === -1) continue
-      const beforeW = idx > 0 ? measureFn(line.slice(0, idx), fontSize, fontFamily, fontWeight) : 0
-      const hlW = measureFn(hlText, fontSize, fontFamily, fontWeight)
-      rects.push({
-        x: lineX + alignOffset + beforeW,
-        y: lineY,
-        w: hlW,
-        h: lineHeight,
-      })
+    for (const range of hlRanges) {
+      const overlapStart = Math.max(range.start, lineStart)
+      const overlapEnd = Math.min(range.end, lineEnd)
+      if (overlapStart >= overlapEnd) continue
+
+      const hlPart = line.slice(overlapStart - lineStart, overlapEnd - lineStart)
+      const beforePart = line.slice(0, overlapStart - lineStart)
+      const beforeW = beforePart ? measureFn(beforePart, fontSize, fontFamily, fontWeight) : 0
+      const hlW = measureFn(hlPart, fontSize, fontFamily, fontWeight)
+
+      if (hlW > 0) {
+        rects.push({
+          x: lineX + alignOffset + beforeW,
+          y: lineY,
+          w: hlW,
+          h: lineHeight,
+        })
+      }
     }
   })
 
