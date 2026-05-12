@@ -175,8 +175,8 @@ Return ONLY a valid JSON array with exactly ${count} object(s). No markdown, no 
 Each carousel object must have:
 {
   "carousel_type": "<brief description>",
-  "image_prompt_title": "<Full-body character — entire figure from head to toe visible, no cropping. No setting, no props, pure white background. Strictly follow image prompt rules in carousel instructions. Different pose AND hair colour from image_prompt_content.>",
-  "image_prompt_content": "<Topic-related, brief, evocative — always a woman, different pose AND different hair colour from image_prompt_title. No setting, pure white background. Strictly follow image prompt rules in carousel instructions.>",
+  "image_prompt_title": "<Illustration prompt for the TITLE slide. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",
+  "image_prompt_content": "<Illustration prompt for the CONTENT slides. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",
   "slides": [
     {
       "index": 1,
@@ -190,9 +190,7 @@ Each carousel object must have:
 IMPORTANT:
 - "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.
 - "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty.
-- image_prompt_title: full-body framing ONLY (no setting, no action, no props, no background). Max 20 words.
-- image_prompt_content: must relate to the carousel topic. Max 20 words.
-- The two prompts MUST use different poses AND different hair colours.
+- image_prompt_title and image_prompt_content: follow ONLY the framing, composition, and background rules defined in the template's carousel instructions. Do NOT add hardcoded defaults. Max 20 words each.
 - There is NO illustration_prompt on individual slides.
 - All text in "text_fields" is what will be rendered on the slide.`
 

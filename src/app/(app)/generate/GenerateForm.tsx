@@ -210,17 +210,20 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       return url
     }
 
-    // Map slide type → image prompt from the carousel LLM output
-    const imagePromptByType: Record<string, string> = {
-      title: carousel.image_prompt_title || '',
-      content: carousel.image_prompt_content || '',
+    // Map slide type → image prompt from the carousel LLM output.
+    // The LLM only produces two prompts (title + content). Any slide type whose
+    // name starts with "title" uses image_prompt_title; everything else (content,
+    // content_1, content_2, cta, ...) uses image_prompt_content.
+    function promptForSlideType(st: string): string {
+      if (st === 'title' || st.startsWith('title')) return carousel.image_prompt_title || ''
+      return carousel.image_prompt_content || ''
     }
 
     // Only fetch images for slide types that have a generated image element
     const imageByType: Record<string, string> = {}
     await Promise.all(
       [...generatedImageSlideTypes].map(async (st, i) => {
-        const prompt = imagePromptByType[st] || ''
+        const prompt = promptForSlideType(st)
         if (!prompt) return
         const url = await fetchImg(prompt, i + 1, st)
         if (url) imageByType[st] = url

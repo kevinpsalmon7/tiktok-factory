@@ -11,17 +11,11 @@ type GenerateImageArgs = {
   log?: Logger
 }
 
-function compositionRulesForSlide(slideType?: string): string {
-  switch (slideType) {
-    case 'title':
-      return '\n\n## CURRENT SLIDE — TITLE\nFraming: full body. The entire character from head to toe must be visible. No cropping at waist or knees. No close-up. Pure white background, no environment.'
-    case 'content':
-      return '\n\n## CURRENT SLIDE — CONTENT\nComposition: abstract, atmospheric figure. Quiet, simplified, almost timeless backdrop. No narrative scene with multiple props or specific situations being lived out. A figure and a mood, nothing more.'
-    case 'cta':
-      return '\n\n## CURRENT SLIDE — CTA\nComposition: same abstract atmospheric rules as content slides. Clean, simple, no narrative.'
-    default:
-      return ''
-  }
+// Per-slide composition rules are now defined entirely in each template's
+// gemini_instructions (style guide). No hardcoded rules — the template owns
+// everything about framing, background, and composition.
+function compositionRulesForSlide(_slideType?: string): string {
+  return ''
 }
 
 /**
