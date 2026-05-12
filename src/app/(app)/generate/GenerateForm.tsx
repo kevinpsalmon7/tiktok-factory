@@ -210,25 +210,45 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       return url
     }
 
-    // Map slide type → image prompt from the carousel LLM output.
-    // The LLM only produces two prompts (title + content). Any slide type whose
-    // name starts with "title" uses image_prompt_title; everything else (content,
-    // content_1, content_2, cta, ...) uses image_prompt_content.
-    function promptForSlideType(st: string): string {
-      if (st === 'title' || st.startsWith('title')) return carousel.image_prompt_title || ''
-      return carousel.image_prompt_content || ''
+    // The LLM produces exactly two image prompts per carousel:
+    //   - image_prompt_title → used for the title slide
+    //   - image_prompt_content → SHARED by every content slide, regardless of
+    //     how many content variants the layout defines (content_1, content_2,
+    //     content_3, cta, ...). Templates may define multiple content variants
+    //     for purely layout-related reasons (with/without subtitle, etc.) —
+    //     they all share the same background image.
+    //
+    // We therefore generate AT MOST two images: one for the title group, one
+    // for the content group. All slide types in a group share the URL.
+    const titleSlideTypes = [...generatedImageSlideTypes].filter(
+      (st) => st === 'title' || st.startsWith('title')
+    )
+    const contentSlideTypes = [...generatedImageSlideTypes].filter(
+      (st) => !(st === 'title' || st.startsWith('title'))
+    )
+
+    const imageByType: Record<string, string> = {}
+    const imagePromises: Promise<void>[] = []
+
+    if (titleSlideTypes.length > 0 && carousel.image_prompt_title) {
+      imagePromises.push(
+        (async () => {
+          const url = await fetchImg(carousel.image_prompt_title!, 1, titleSlideTypes[0])
+          if (url) for (const st of titleSlideTypes) imageByType[st] = url
+        })()
+      )
     }
 
-    // Only fetch images for slide types that have a generated image element
-    const imageByType: Record<string, string> = {}
-    await Promise.all(
-      [...generatedImageSlideTypes].map(async (st, i) => {
-        const prompt = promptForSlideType(st)
-        if (!prompt) return
-        const url = await fetchImg(prompt, i + 1, st)
-        if (url) imageByType[st] = url
-      })
-    )
+    if (contentSlideTypes.length > 0 && carousel.image_prompt_content) {
+      imagePromises.push(
+        (async () => {
+          const url = await fetchImg(carousel.image_prompt_content!, 2, contentSlideTypes[0])
+          if (url) for (const st of contentSlideTypes) imageByType[st] = url
+        })()
+      )
+    }
+
+    await Promise.all(imagePromises)
 
     if (stoppedRef.current.has(idx) || stopAllRef.current) throw new Error('cancelled')
 
