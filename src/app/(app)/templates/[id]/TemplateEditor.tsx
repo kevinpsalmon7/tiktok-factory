@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { InstructionBudgetGauge } from './InstructionBudgetGauge'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import {
@@ -672,11 +673,18 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         </div>
       ) : tab === 'instructions' ? (
         <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
-          <h2 className="font-display text-xl font-semibold mb-1">Instructions</h2>
-          <p className="text-sm text-ink-600 mb-6">
-            Définissez le contexte et les consignes transmis à l&apos;IA lors de la génération.
-            Chaque section accepte un fichier PDF, .txt ou .md.
-          </p>
+          <div className="flex items-start justify-between gap-6 mb-6">
+            <div>
+              <h2 className="font-display text-xl font-semibold mb-1">Instructions</h2>
+              <p className="text-sm text-ink-600">
+                Définissez le contexte et les consignes transmis à l&apos;IA lors de la génération.
+                Chaque section accepte un fichier PDF, .txt ou .md.
+              </p>
+            </div>
+            <InstructionBudgetGauge
+              texts={[absoluteRules, randomizationInstructions, carouselInstructions, avatarInstructions, styleGuide, geminiInstructions]}
+            />
+          </div>
           <div className="space-y-8">
             <InstructionSection
               title="Règles impératives"
