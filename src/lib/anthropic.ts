@@ -1,6 +1,53 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Logger } from './logger'
 
+/**
+ * Retry a Claude API call with exponential backoff when Anthropic returns
+ * transient errors:
+ *   - 429: rate limited
+ *   - 529: overloaded (Anthropic's servers are saturated)
+ *   - 503: service unavailable
+ *   - 500: generic upstream error
+ *
+ * Delays: 1s → 2s → 4s → 8s → 16s (then give up).
+ * Total worst-case wait before final failure: ~31s.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  log?: Logger,
+  tag = ''
+): Promise<T> {
+  const RETRYABLE = new Set([429, 500, 503, 529])
+  const MAX_ATTEMPTS = 5
+  let lastErr: unknown
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fn()
+    } catch (err: unknown) {
+      lastErr = err
+      const status =
+        typeof err === 'object' && err !== null && 'status' in err
+          ? Number((err as { status: number }).status)
+          : 0
+      if (!RETRYABLE.has(status) || attempt === MAX_ATTEMPTS) {
+        throw err
+      }
+      const delayMs = Math.pow(2, attempt - 1) * 1000 // 1s, 2s, 4s, 8s, 16s
+      const jitter = Math.floor(Math.random() * 250)
+      const wait = delayMs + jitter
+      await log?.({
+        step: `claude.retry${tag ? '.' + tag : ''}`,
+        level: 'warn',
+        message: `Anthropic returned ${status}, retrying in ${wait}ms (attempt ${attempt}/${MAX_ATTEMPTS - 1})`,
+        payload: { status, attempt, waitMs: wait },
+      })
+      await new Promise((resolve) => setTimeout(resolve, wait))
+    }
+  }
+  throw lastErr
+}
+
 export type CarouselIntent = {
   count: number
   // One specific, distinct instruction per carousel (never null)
@@ -43,11 +90,16 @@ export async function extractIntent(prompt: string, apiKey: string, log?: Logger
 
   await log?.({ step: 'claude.intent.request', message: 'extractIntent: sending prompt to Claude', payload: { model: 'claude-sonnet-4-5', userPrompt: prompt, fullClaudePrompt: userContent } })
 
-  const res = await client.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 512,
-    messages: [{ role: 'user', content: userContent }],
-  })
+  const res = await withRetry(
+    () =>
+      client.messages.create({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 512,
+        messages: [{ role: 'user', content: userContent }],
+      }),
+    log,
+    'intent'
+  )
 
   const rawText = res.content[0].type === 'text' ? res.content[0].text : ''
   await log?.({ step: 'claude.intent.response', message: 'extractIntent: raw Claude response', payload: { raw: rawText } })
@@ -179,11 +231,16 @@ export async function generateCarousels({
     },
   })
 
-  const message = await client.messages.create({
-    model,
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: messageContent }],
-  })
+  const message = await withRetry(
+    () =>
+      client.messages.create({
+        model,
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: messageContent }],
+      }),
+    log,
+    `carousel${carouselTag ? '.' + carouselTag : ''}`
+  )
 
   const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
   await log?.({
