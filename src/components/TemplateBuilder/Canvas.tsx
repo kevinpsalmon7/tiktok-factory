@@ -12,6 +12,7 @@ import type {
   ImageElement,
   RectElement,
   TextParagraph,
+  TextShadow,
 } from '@/types/database'
 import { computeHighlightRects } from '@/lib/highlight-utils'
 
@@ -405,6 +406,7 @@ type ResolvedParagraph =
       text: string; fontFamily: string; fontSize: number; fontWeight: number | string
       color: string; align: 'left' | 'center' | 'right'; lineHeight: number
       highlight: boolean; highlightColor: string
+      shadow?: TextShadow
     }
   | {
       isSeparator: false
@@ -412,6 +414,7 @@ type ResolvedParagraph =
       text: string; fontFamily: string; fontSize: number; fontWeight: number | string
       color: string; align: 'left' | 'center' | 'right'; lineHeight: number
       highlight: boolean; highlightColor: string
+      shadow?: TextShadow
     }
 
 // Resolve element.paragraphs (rich) or fall back to a single legacy paragraph.
@@ -450,6 +453,7 @@ function resolveParagraphs(element: TextElement): ResolvedParagraph[] {
       lineHeight: p.lineHeight ?? def.lineHeight,
       highlight: p.highlight ?? false,
       highlightColor: p.highlightColor ?? '#FFE500',
+      shadow: p.shadow,
     }
   })
 }
@@ -585,6 +589,14 @@ function TextNode({
             lineHeight={p.lineHeight}
             verticalAlign="top"
             listening={false}
+            {...(p.shadow ? {
+              shadowEnabled: true,
+              shadowColor: p.shadow.color,
+              shadowBlur: p.shadow.blur,
+              shadowOffsetX: p.shadow.offsetX,
+              shadowOffsetY: p.shadow.offsetY,
+              shadowOpacity: p.shadow.opacity,
+            } : {})}
           />
           </>}
         </Fragment>

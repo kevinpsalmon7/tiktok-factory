@@ -139,6 +139,15 @@ export type TemplateElementType = 'text' | 'image' | 'rect'
 // The generator (Claude) fills each role with appropriate copy.
 export type TextRole = 'title' | 'subtitle' | 'text'
 
+/** Drop-shadow applied behind a text paragraph. */
+export type TextShadow = {
+  color: string
+  offsetX: number
+  offsetY: number
+  blur: number
+  opacity: number
+}
+
 export type TextParagraph = {
   role?: TextRole
   text?: string
@@ -152,6 +161,8 @@ export type TextParagraph = {
   highlight?: boolean
   /** Highlight fill color (default #FFE500) */
   highlightColor?: string
+  /** Optional drop-shadow behind the rendered text. */
+  shadow?: TextShadow
   /**
    * When set (> 0), this paragraph is a pure vertical spacer — no text is
    * rendered. The value is the height in canvas pixels.

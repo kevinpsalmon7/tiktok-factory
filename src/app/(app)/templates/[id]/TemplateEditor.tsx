@@ -1358,6 +1358,58 @@ function TextProperties({
             />
           )}
         </div>
+        <div className="border border-cream-200 rounded-lg p-2 space-y-1.5">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!sel.shadow}
+              onChange={(e) =>
+                updatePara({
+                  shadow: e.target.checked
+                    ? (sel.shadow ?? { color: '#000000', offsetX: 0, offsetY: 4, blur: 8, opacity: 0.35 })
+                    : undefined,
+                })
+              }
+              className="w-3 h-3 accent-ink-900"
+            />
+            <span className="text-[10px] text-ink-700 font-medium">Ombre portée</span>
+          </label>
+          {sel.shadow && (
+            <>
+              <ColorField
+                label="Couleur"
+                value={sel.shadow.color}
+                onChange={(v) => updatePara({ shadow: { ...sel.shadow!, color: v } })}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <NumberField
+                  label="Décal. X"
+                  value={sel.shadow.offsetX}
+                  onChange={(v) => updatePara({ shadow: { ...sel.shadow!, offsetX: Math.round(v) } })}
+                />
+                <NumberField
+                  label="Décal. Y"
+                  value={sel.shadow.offsetY}
+                  onChange={(v) => updatePara({ shadow: { ...sel.shadow!, offsetY: Math.round(v) } })}
+                />
+                <NumberField
+                  label="Flou"
+                  value={sel.shadow.blur}
+                  onChange={(v) => updatePara({ shadow: { ...sel.shadow!, blur: Math.max(0, Math.round(v)) } })}
+                />
+                <NumberField
+                  label="Opacité %"
+                  value={Math.round(sel.shadow.opacity * 100)}
+                  onChange={(v) =>
+                    updatePara({
+                      shadow: { ...sel.shadow!, opacity: Math.max(0, Math.min(1, v / 100)) },
+                    })
+                  }
+                />
+              </div>
+            </>
+          )}
+        </div>
         <div>
           <label className="block text-[10px] text-ink-600 mb-0.5">Police</label>
           <FontPicker

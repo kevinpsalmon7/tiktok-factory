@@ -130,6 +130,7 @@ async function addElement(
         lh: lineHeight * fontSize,
         highlight: p.highlight ?? false,
         highlightColor: p.highlightColor ?? '#FFE500',
+        shadow: p.shadow,
       }
     })
 
@@ -258,6 +259,14 @@ async function addElement(
         verticalAlign: 'top',
         opacity: t.opacity ?? 1,
         listening: false,
+        ...(p.shadow ? {
+          shadowEnabled: true,
+          shadowColor: p.shadow.color,
+          shadowBlur: p.shadow.blur,
+          shadowOffsetX: p.shadow.offsetX,
+          shadowOffsetY: p.shadow.offsetY,
+          shadowOpacity: p.shadow.opacity,
+        } : {}),
       }))
 
       const next = activeParas[pi + 1]
