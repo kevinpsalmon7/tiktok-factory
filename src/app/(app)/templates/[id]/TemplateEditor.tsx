@@ -1235,12 +1235,12 @@ function TextProperties({
       </div>
 
       <div>
-        <label className="block text-[10px] text-ink-600 mb-0.5">Ancre (étirement)</label>
+        <label className="block text-[10px] text-ink-600 mb-0.5">Alignement vertical</label>
         <div className="flex gap-1">
           {([
-            { value: 'down', label: '↓ bas', title: 'Le bord haut est fixe — la box grandit vers le bas' },
-            { value: 'both', label: '↕ centre', title: 'Le centre est fixe — la box grandit des deux côtés' },
-            { value: 'up',   label: '↑ haut', title: 'Le bord bas est fixe — la box grandit vers le haut' },
+            { value: 'down', label: '↑ Haut',   title: 'Texte aligné en haut de la box' },
+            { value: 'both', label: '↕ Centre', title: 'Texte centré verticalement dans la box' },
+            { value: 'up',   label: '↓ Bas',    title: 'Texte aligné en bas de la box' },
           ] as const).map(({ value, label, title }) => (
             <button
               key={value}
