@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { LayoutTemplate, Plus } from 'lucide-react'
+import { LayoutTemplate } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { CreateTemplateButton } from './CreateTemplateButton'
+import { DuplicateTemplateButton } from './DuplicateTemplateButton'
 
 type TemplateRow = {
   id: string
@@ -58,8 +59,9 @@ export default async function TemplatesPage() {
             <Link
               key={t.id}
               href={`/templates/${t.id}`}
-              className="pastel-card bg-white hover:bg-cream-50 flex flex-col gap-3 group"
+              className="pastel-card bg-white hover:bg-cream-50 flex flex-col gap-3 group relative"
             >
+              <DuplicateTemplateButton templateId={t.id} templateName={t.name} />
               <div className="aspect-[9/16] rounded-xl bg-cream-100 flex items-center justify-center">
                 <LayoutTemplate size={48} className="text-ink-600/30" />
               </div>
