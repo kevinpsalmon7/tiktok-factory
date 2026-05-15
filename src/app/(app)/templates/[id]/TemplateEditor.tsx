@@ -1235,12 +1235,12 @@ function TextProperties({
       </div>
 
       <div>
-        <label className="block text-[10px] text-ink-600 mb-0.5">Alignement vertical</label>
+        <label className="block text-[10px] text-ink-600 mb-0.5">Ancre (étirement)</label>
         <div className="flex gap-1">
           {([
-            { value: 'down', label: '↑ Haut',   title: 'Texte aligné en haut de la box' },
-            { value: 'both', label: '↕ Centre', title: 'Texte centré verticalement dans la box' },
-            { value: 'up',   label: '↓ Bas',    title: 'Texte aligné en bas de la box' },
+            { value: 'down', label: '↓ bas', title: 'Le bord haut est fixe — la box grandit vers le bas' },
+            { value: 'both', label: '↕ centre', title: 'Le centre est fixe — la box grandit des deux côtés' },
+            { value: 'up',   label: '↑ haut', title: 'Le bord bas est fixe — la box grandit vers le haut' },
           ] as const).map(({ value, label, title }) => (
             <button
               key={value}
@@ -1459,6 +1459,29 @@ function TextProperties({
           </div>
         </div>
         </>)}
+      </div>
+
+      {/* ── Alignement vertical du bloc texte dans la box ───────────── */}
+      <div className="border-t border-ink-100 pt-3">
+        <label className="block text-[10px] text-ink-600 mb-0.5">Alignement vertical</label>
+        <div className="flex gap-1">
+          {([
+            { value: 'top',    label: '↑ Haut',   title: 'Texte aligné en haut de la box' },
+            { value: 'middle', label: '↕ Centre', title: 'Texte centré verticalement dans la box' },
+            { value: 'bottom', label: '↓ Bas',    title: 'Texte aligné en bas de la box' },
+          ] as const).map(({ value, label, title }) => (
+            <button
+              key={value}
+              onClick={() => onChange({ verticalAlign: value })}
+              className={`flex-1 py-1.5 rounded-lg text-[10px] ${
+                element.verticalAlign === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
+              }`}
+              title={title}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
     </>
   )

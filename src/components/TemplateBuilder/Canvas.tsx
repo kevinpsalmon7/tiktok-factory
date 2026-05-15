@@ -476,20 +476,30 @@ function TextNode({
   // inline mode: text uses full width, padding controls bg rect visual margin
   const textX = bgMode === 'block' ? padding : 0
   const textW = bgMode === 'block' ? Math.max(10, element.width - padding * 2) : element.width
-  let curY = bgMode === 'block' ? padding : 0
+  const baseTop = bgMode === 'block' ? padding : 0
 
-  const items = paras.map((p, i) => {
-    if (p.isSeparator) {
-      const y = curY
-      curY += p.spacerH
-      return { p, lines: [] as string[], lh: 0, y }
-    }
+  // First pass — measure each paragraph so we can shift everything according
+  // to verticalAlign (top / middle / bottom). Vertical alignment positions
+  // the wrapped text block within the box's height.
+  const measured = paras.map((p, i) => {
+    if (p.isSeparator) return { p, lines: [] as string[], lh: 0, h: p.spacerH }
     const lines = wrapText(p.text, textW, p.fontSize, p.fontFamily, p.fontWeight)
     const lh = p.lineHeight * p.fontSize
-    const y = curY
     const next = paras[i + 1]
-    curY += lines.length * lh + (next && !next.isSeparator ? PARA_GAP : 0)
-    return { p, lines, lh, y }
+    const gap = next && !next.isSeparator ? PARA_GAP : 0
+    return { p, lines, lh, h: lines.length * lh + gap }
+  })
+  const contentH = measured.reduce((sum, m) => sum + m.h, 0)
+  const innerH = element.height - (bgMode === 'block' ? padding * 2 : 0)
+  const va = element.verticalAlign
+  const slack = Math.max(0, innerH - contentH)
+  const offset = va === 'middle' ? slack / 2 : va === 'bottom' ? slack : 0
+
+  let curY = baseTop + offset
+  const items = measured.map((m) => {
+    const y = curY
+    curY += m.h
+    return { ...m, y }
   })
 
   return (

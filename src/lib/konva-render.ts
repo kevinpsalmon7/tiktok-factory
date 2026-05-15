@@ -148,17 +148,29 @@ async function addElement(
     }, 0)
     const contentH = textH + (bgMode === 'block' ? padding * 2 : 0)
 
-    // Compute actualY based on growDirection (anchor point):
-    // 'down'  → top edge fixed (default anchor top)
-    // 'up'    → bottom edge fixed (anchor bottom)
-    // 'both'  → center fixed, grows equally up and down
+    // Compute actualY:
+    // 1. If verticalAlign is set, it WINS: position the text block at top /
+    //    middle / bottom of the box (t.y .. t.y+t.height), regardless of how
+    //    the box would otherwise auto-resize.
+    // 2. Otherwise, fall back to growDirection (legacy anchor for auto-resize):
+    //    'down' → top edge fixed, 'up' → bottom edge fixed, 'both' → center.
     const actualH = Math.max(contentH, 1)
-    const grow = t.growDirection ?? 'both'
-    const actualY = grow === 'down'
-      ? t.y
-      : grow === 'up'
-        ? Math.round(t.y + t.height - actualH)
-        : Math.round(t.y + t.height / 2 - actualH / 2)
+    const va = t.verticalAlign
+    let actualY: number
+    if (va === 'top') {
+      actualY = t.y
+    } else if (va === 'bottom') {
+      actualY = Math.round(t.y + t.height - actualH)
+    } else if (va === 'middle') {
+      actualY = Math.round(t.y + t.height / 2 - actualH / 2)
+    } else {
+      const grow = t.growDirection ?? 'both'
+      actualY = grow === 'down'
+        ? t.y
+        : grow === 'up'
+          ? Math.round(t.y + t.height - actualH)
+          : Math.round(t.y + t.height / 2 - actualH / 2)
+    }
 
     // Block background — sized to actual content
     if (t.backgroundColor && bgMode === 'block') {

@@ -198,6 +198,14 @@ export interface TextElement extends BaseElement {
   lineHeight?: number
   placeholder?: string // shown in builder preview (legacy — use paragraphs instead)
   paragraphs?: TextParagraph[] // per-paragraph rich styling
+  /**
+   * Vertical alignment of the text block within the box (t.y .. t.y+t.height).
+   * Independent of growDirection: when set, overrides where the text sits.
+   * - 'top'    → text aligned to the top edge of the box
+   * - 'middle' → text centered vertically inside the box
+   * - 'bottom' → text aligned to the bottom edge of the box
+   */
+  verticalAlign?: 'top' | 'middle' | 'bottom'
   // Which edge is the anchor when the box auto-resizes to fit content:
   // 'down'  → top edge fixed, box grows downward
   // 'up'    → bottom edge fixed, box grows upward
