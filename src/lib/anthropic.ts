@@ -143,6 +143,38 @@ type GenerateArgs = {
   images?: ImageInput[]
   log?: Logger
   carouselTag?: string
+  // Min/max number of "content" slides the LLM must generate
+  contentSlideRange?: { min: number; max: number }
+}
+
+/**
+ * Build a MANDATORY SLIDE STRUCTURE block for the LLM prompt.
+ * Slide types containing "content" get a variable count; all others get exactly 1.
+ */
+function buildSlideStructureBlock(
+  slideTypes: string[],
+  contentSlideRange?: { min: number; max: number }
+): string {
+  if (!slideTypes.length) return ''
+  const range = contentSlideRange ?? { min: 5, max: 8 }
+  const isContent = (st: string) => st === 'content' || st.startsWith('content')
+
+  const lines = slideTypes.map(st => {
+    if (isContent(st)) {
+      return `  - "${st}": between ${range.min} and ${range.max} slides (pick a random count within this range)`
+    }
+    return `  - "${st}": exactly 1 slide`
+  })
+
+  const fixedCount = slideTypes.filter(st => !isContent(st)).length
+  const minTotal = fixedCount + range.min
+  const maxTotal = fixedCount + range.max
+
+  return `MANDATORY SLIDE STRUCTURE — enforce this AFTER master instructions, BEFORE style guide:
+Generate slides in this ORDER with these EXACT COUNTS:
+${lines.join('\n')}
+Total: ${minTotal === maxTotal ? minTotal : `${minTotal}–${maxTotal}`} slides.
+Do NOT skip any type. Do NOT change the order. Do NOT add extra slides of fixed types.`
 }
 
 export async function generateCarousels({
@@ -161,6 +193,7 @@ export async function generateCarousels({
   images = [],
   log,
   carouselTag = '',
+  contentSlideRange,
 }: GenerateArgs) {
   const client = new Anthropic({ apiKey })
 
@@ -179,6 +212,7 @@ export async function generateCarousels({
   // Build the slide-types specification block from the template layout.
   // Each slide type lists the text roles Claude must fill in for that type.
   const slideTypeNames = rolesByType ? Object.keys(rolesByType) : ['title', 'content', 'cta']
+  const slideStructureBlock = buildSlideStructureBlock(slideTypeNames, contentSlideRange)
   const slideTypesSpec = rolesByType
     ? Object.entries(rolesByType)
         .map(([st, roles]) => {
@@ -192,7 +226,8 @@ export async function generateCarousels({
         .join('\n')
     : '  - "title", "content", "cta" → text_fields keys: title, text, cta'
 
-  const prompt = `${masterBlock}${absoluteRulesBlock}${avatarBlock}${historyBl}${userBlock}You generate content for TikTok/Instagram carousels.\n\nWRITING RULES — ZERO TOLERANCE:\n- FORBIDDEN: em dash "—". Replace with period or line break.\n- FORBIDDEN: "---" as separator.\n- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).\n- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants. Never use this oppositional two-sentence structure.\n\nGenerate exactly ${count} carousel(s). Each must follow the style and structure below.\n\n--- STYLE GUIDE ---\n${styleGuide}\n\n--- CAROUSEL INSTRUCTIONS ---\n${carouselInstructions}\n\n--- AVAILABLE SLIDE TYPES ---\nFor each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.\n${slideTypesSpec}\n\nHIGHLIGHT RULES — MANDATORY, NO EXCEPTIONS:\n- For every text role marked [HIGHLIGHT ENABLED], you MUST include ==...== markers in the text.\n- Every such field MUST contain at least one ==highlighted passage==.\n- If a field is marked [HIGHLIGHT ENABLED] and you produce text without any ==...== markers, the output is INVALID.\n- Choose the 1 to 3 most emotionally resonant words or short phrases and wrap them: ==like this==.\n\nAllowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.\n\nReturn ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.\n\nEach carousel object must have:\n{\n  "carousel_type": "<brief description>",\n  "image_prompt_title": "<Illustration prompt for the TITLE slide. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",\n  "image_prompt_content": "<Illustration prompt for the CONTENT slides. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",\n  "slides": [\n    {\n      "index": 1,\n      "slide_type": "<one of the allowed values above>",\n      "text_fields": { "<role>": "<copy>", ... }\n    },\n    ...\n  ]\n}\n\nIMPORTANT:\n- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.\n- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty.\n- image_prompt_title and image_prompt_content: follow ONLY the framing, composition, and background rules defined in the template's carousel instructions. Do NOT add hardcoded defaults. Max 20 words each.\n- There is NO illustration_prompt on individual slides.\n- All text in "text_fields" is what will be rendered on the slide.\n`
+  const slideStructurePart = slideStructureBlock ? `\n\n${slideStructureBlock}` : ''
+  const prompt = `${masterBlock}${absoluteRulesBlock}${avatarBlock}${historyBl}${userBlock}You generate content for TikTok/Instagram carousels.\n\nWRITING RULES — ZERO TOLERANCE:\n- FORBIDDEN: em dash "—". Replace with period or line break.\n- FORBIDDEN: "---" as separator.\n- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).\n- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants. Never use this oppositional two-sentence structure.\n\nGenerate exactly ${count} carousel(s). Each must follow the style and structure below.${slideStructurePart}\n\n--- STYLE GUIDE ---\n${styleGuide}\n\n--- CAROUSEL INSTRUCTIONS ---\n${carouselInstructions}\n\n--- AVAILABLE SLIDE TYPES ---\nFor each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.\n${slideTypesSpec}\n\nHIGHLIGHT RULES — MANDATORY, NO EXCEPTIONS:\n- For every text role marked [HIGHLIGHT ENABLED], you MUST include ==...== markers in the text.\n- Every such field MUST contain at least one ==highlighted passage==.\n- If a field is marked [HIGHLIGHT ENABLED] and you produce text without any ==...== markers, the output is INVALID.\n- Choose the 1 to 3 most emotionally resonant words or short phrases and wrap them: ==like this==.\n\nAllowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.\n\nReturn ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.\n\nEach carousel object must have:\n{\n  "carousel_type": "<brief description>",\n  "image_prompt_title": "<Illustration prompt for the TITLE slide. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",\n  "image_prompt_content": "<Illustration prompt for the CONTENT slides. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",\n  "slides": [\n    {\n      "index": 1,\n      "slide_type": "<one of the allowed values above>",\n      "text_fields": { "<role>": "<copy>", ... }\n    },\n    ...\n  ]\n}\n\nIMPORTANT:\n- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.\n- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty.\n- image_prompt_title and image_prompt_content: follow ONLY the framing, composition, and background rules defined in the template's carousel instructions. Do NOT add hardcoded defaults. Max 20 words each.\n- There is NO illustration_prompt on individual slides.\n- All text in "text_fields" is what will be rendered on the slide.\n`
 
   const imagesNote = images.length > 0
     ? `\n\nREFERENCE IMAGES: ${images.length} image(s) attached. Extract or adapt text from them as instructed by the user.`

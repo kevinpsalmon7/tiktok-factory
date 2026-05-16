@@ -97,6 +97,38 @@ type GenerateArgs = {
   images?: ImageInput[]
   log?: Logger
   carouselTag?: string
+  // Min/max number of "content" slides the LLM must generate
+  contentSlideRange?: { min: number; max: number }
+}
+
+/**
+ * Build a MANDATORY SLIDE STRUCTURE block for the LLM prompt.
+ * Slide types containing "content" get a variable count; all others get exactly 1.
+ */
+function buildSlideStructureBlock(
+  slideTypes: string[],
+  contentSlideRange?: { min: number; max: number }
+): string {
+  if (!slideTypes.length) return ''
+  const range = contentSlideRange ?? { min: 5, max: 8 }
+  const isContent = (st: string) => st === 'content' || st.startsWith('content')
+
+  const lines = slideTypes.map(st => {
+    if (isContent(st)) {
+      return `  - "${st}": between ${range.min} and ${range.max} slides (pick a random count within this range)`
+    }
+    return `  - "${st}": exactly 1 slide`
+  })
+
+  const fixedCount = slideTypes.filter(st => !isContent(st)).length
+  const minTotal = fixedCount + range.min
+  const maxTotal = fixedCount + range.max
+
+  return `MANDATORY SLIDE STRUCTURE — enforce this AFTER master instructions, BEFORE style guide:
+Generate slides in this ORDER with these EXACT COUNTS:
+${lines.join('\n')}
+Total: ${minTotal === maxTotal ? minTotal : `${minTotal}–${maxTotal}`} slides.
+Do NOT skip any type. Do NOT change the order. Do NOT add extra slides of fixed types.`
 }
 
 export async function generateCarousels({
@@ -115,6 +147,7 @@ export async function generateCarousels({
   images = [],
   log,
   carouselTag = '',
+  contentSlideRange,
 }: GenerateArgs) {
   const ai = new GoogleGenAI({ apiKey })
 
@@ -131,6 +164,7 @@ export async function generateCarousels({
   const historyBl = historyBlock ? `${historyBlock}\n\n` : ''
 
   const slideTypeNames = rolesByType ? Object.keys(rolesByType) : ['title', 'content', 'cta']
+  const slideStructureBlock = buildSlideStructureBlock(slideTypeNames, contentSlideRange)
   const slideTypesSpec = rolesByType
     ? Object.entries(rolesByType)
         .map(([st, roles]) => {
@@ -144,13 +178,14 @@ export async function generateCarousels({
         .join('\n')
     : '  - "title", "content", "cta" → text_fields keys: title, text, cta'
 
+  const slideStructurePart = slideStructureBlock ? `\n\n${slideStructureBlock}` : ''
   const systemInstruction = `You generate content for TikTok/Instagram carousels.
 
 WRITING RULES — ZERO TOLERANCE:
 - FORBIDDEN: em dash "—". Replace with period or line break.
 - FORBIDDEN: "---" as separator.
 - FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).
-- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants ("It's not X. It's Y.", "Ce n'est pas X. C'est Y.", "Pas X. Juste Y.", "Not X. Y.", etc.). Never use this oppositional two-sentence structure. Find a direct, affirmative formulation instead.
+- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants ("It's not X. It's Y.", "Ce n'est pas X. C'est Y.", "Pas X. Juste Y.", "Not X. Y.", etc.). Never use this oppositional two-sentence structure. Find a direct, affirmative formulation instead.${slideStructurePart}
 
 --- STYLE GUIDE ---
 ${styleGuide}

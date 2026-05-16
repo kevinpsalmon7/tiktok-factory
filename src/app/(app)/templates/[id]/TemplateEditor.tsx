@@ -600,6 +600,48 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
                 />
               </div>
             </div>
+
+            {/* Content slide range */}
+            {layout.slideTypes.some(st => st === 'content' || st.startsWith('content')) && (
+              <div className="border-t border-cream-100 pt-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-ink-600 px-2 mb-1">
+                  Génération
+                </div>
+                <p className="text-[10px] text-ink-600/60 px-2 mb-2">
+                  Slides &laquo;&nbsp;content&nbsp;&raquo; à générer
+                </p>
+                <div className="grid grid-cols-2 gap-2 px-1">
+                  <PaddingField
+                    label="Min"
+                    value={layout.contentSlideRange?.min ?? 5}
+                    onChange={(v) => {
+                      const newMin = Math.max(1, Math.min(20, v))
+                      pushLayout((l) => ({
+                        ...l,
+                        contentSlideRange: {
+                          min: newMin,
+                          max: Math.max(newMin, l.contentSlideRange?.max ?? 8),
+                        },
+                      }))
+                    }}
+                  />
+                  <PaddingField
+                    label="Max"
+                    value={layout.contentSlideRange?.max ?? 8}
+                    onChange={(v) => {
+                      const newMax = Math.max(1, Math.min(20, v))
+                      pushLayout((l) => ({
+                        ...l,
+                        contentSlideRange: {
+                          min: Math.min(l.contentSlideRange?.min ?? 5, newMax),
+                          max: newMax,
+                        },
+                      }))
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Center: canvas */}

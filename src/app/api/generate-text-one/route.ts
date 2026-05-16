@@ -158,6 +158,7 @@ export async function POST(request: Request) {
       images,
       log,
       carouselTag,
+      contentSlideRange: template.layout.contentSlideRange,
     })
 
     const carousel = Array.isArray(carousels) ? carousels[0] : carousels

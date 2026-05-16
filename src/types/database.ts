@@ -284,6 +284,9 @@ export interface TemplateLayout {
   slideTypes: string[]
   // Safe area / inner padding shown as guides in the builder (visual only).
   padding?: TemplatePadding
+  // Min/max number of "content" slides to generate (enforced in the LLM prompt).
+  // Defaults to { min: 5, max: 8 } when not set.
+  contentSlideRange?: { min: number; max: number }
 }
 
 // ── Carousel slide types ──────────────────────────────────────────────────
