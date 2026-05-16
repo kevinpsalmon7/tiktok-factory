@@ -127,7 +127,10 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
   const [renamingType, setRenamingType] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
-  // Push a new layout state onto the history stack (capped at HISTORY_LIMIT)
+  // Push a new layout state onto the history stack (capped at HISTORY_LIMIT).
+  // IMPORTANT: setHistoryIndex must be called OUTSIDE the setHistory callback —
+  // calling one setState inside another setState updater is incorrect React and
+  // can cause the two states to desync (manifests as changes appearing to rollback).
   const pushLayout = useCallback(
     (next: TemplateLayout | ((prev: TemplateLayout) => TemplateLayout)) => {
       setHistory((hist) => {
@@ -137,9 +140,11 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
         const pushed = [...truncated, nextLayout]
         const overflow = pushed.length - HISTORY_LIMIT
         if (overflow > 0) pushed.splice(0, overflow)
-        setHistoryIndex(pushed.length - 1)
         return pushed
       })
+      // Compute the new index from historyIndex alone (no need for latest hist array):
+      // truncated has (historyIndex + 1) items, after push → min(historyIndex + 2, HISTORY_LIMIT)
+      setHistoryIndex(Math.min(historyIndex + 1, HISTORY_LIMIT - 1))
     },
     [historyIndex]
   )

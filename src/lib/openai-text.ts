@@ -170,7 +170,8 @@ WRITING RULES — ZERO TOLERANCE:
 - FORBIDDEN: em dash "—". Replace with period or line break.
 - FORBIDDEN: "---" as separator.
 - FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).
-- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants ("It's not X. It's Y.", "Ce n'est pas X. C'est Y.", "Pas X. Juste Y.", "Not X. Y.", etc.). Never use this oppositional two-sentence structure. Find a direct, affirmative formulation instead.${slideStructurePart}
+- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants ("It's not X. It's Y.", "Ce n'est pas X. C'est Y.", "Pas X. Juste Y.", "Not X. Y.", etc.). Never use this oppositional two-sentence structure. Find a direct, affirmative formulation instead.
+- NUMBER CONSISTENCY: If the title text contains a specific count (e.g. "4 choses", "7 signes"), the number of content slides MUST exactly equal that number — it overrides the range in the slide structure below.${slideStructurePart}
 
 --- STYLE GUIDE ---
 ${styleGuide}
