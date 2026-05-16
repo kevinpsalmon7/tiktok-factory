@@ -66,36 +66,25 @@ export async function POST(request: Request) {
 
   const nextPosition = existing && existing.length > 0 ? (existing[0].position + 1) : 0
 
-  // Generate summary with Claude — fetch image from public Storage URL
+  // Generate summary with Claude — pass URL directly (avoids 5 MB base64 limit)
   let summary = ''
   try {
     const publicUrl = supabase.storage.from('template-pages').getPublicUrl(storagePath).data.publicUrl
-    const imgRes = await fetch(publicUrl)
-    if (imgRes.ok) {
-      const arrayBuf = await imgRes.arrayBuffer()
-      const imageBytes = Buffer.from(arrayBuf)
-      const base64 = imageBytes.toString('base64')
-      type MediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-      const mimeType = (rawMime || 'image/jpeg') as MediaType
-
-      const client = new Anthropic({ apiKey })
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 128,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
-              { type: 'text', text: 'Lis cette page de livre et écris UNE seule phrase courte (15 mots max) qui résume de quoi parle cette page. Réponds uniquement avec cette phrase, sans ponctuation finale.' },
-            ],
-          },
+    const client = new Anthropic({ apiKey })
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 64,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'url', url: publicUrl } },
+          { type: 'text', text: 'Lis cette page de livre et écris UNE seule phrase courte (15 mots max) qui résume de quoi parle cette page. Réponds uniquement avec cette phrase, sans ponctuation finale.' },
         ],
-      })
-      summary = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-    }
+      }],
+    })
+    summary = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
   } catch {
-    // Non-fatal — page saved without summary
+    // Non-fatal — page saved without summary, user can regenerate manually
   }
 
   // Insert into DB

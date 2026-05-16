@@ -18,6 +18,7 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
   const [pages, setPages] = useState<TemplatePage[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -47,6 +48,7 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
     const fileArr = Array.from(files)
     setError(null)
     setUploading(true)
+    setUploadProgress({ done: 0, total: fileArr.length })
     const supabase = createClient()
 
     for (const file of fileArr) {
@@ -84,11 +86,13 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
         setError(body.error || "Erreur lors de l'analyse")
         // Clean up orphaned storage file
         await supabase.storage.from('template-pages').remove([storagePath])
-        continue
       }
+
+      setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
     }
 
     setUploading(false)
+    setUploadProgress(null)
     await loadPages()
   }
 
@@ -218,8 +222,21 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
         <p className="text-xs text-ink-600/70">
           ou clique pour choisir — JPG, PNG, WebP — max {MAX_SIZE_MB}MB
         </p>
-        {uploading && (
-          <p className="text-xs text-ink-600/60">Claude génère le résumé de chaque page…</p>
+        {uploading && uploadProgress && (
+          <div className="w-full max-w-xs space-y-1.5">
+            <div className="flex justify-between text-xs text-ink-600/70">
+              <span>Claude génère les résumés…</span>
+              <span className="font-medium text-ink-800">
+                {uploadProgress.done}/{uploadProgress.total}
+              </span>
+            </div>
+            <div className="h-1.5 w-full bg-cream-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-ink-900 rounded-full transition-all duration-300"
+                style={{ width: `${Math.round((uploadProgress.done / uploadProgress.total) * 100)}%` }}
+              />
+            </div>
+          </div>
         )}
         <input
           id="pages-file-input"

@@ -60,14 +60,6 @@ export async function PATCH(
 
     const publicUrl = supabase.storage.from('template-pages').getPublicUrl(pageRow.storage_path).data.publicUrl
 
-    const imgRes = await fetch(publicUrl)
-    if (!imgRes.ok) {
-      return NextResponse.json({ error: `Impossible de charger l'image (${imgRes.status})` }, { status: 500 })
-    }
-
-    const base64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64')
-    const contentType = (imgRes.headers.get('content-type') || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-
     const client = new Anthropic({ apiKey })
     let newSummary = ''
     try {
@@ -77,7 +69,8 @@ export async function PATCH(
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: contentType, data: base64 } },
+            // Pass URL directly — avoids the 5 MB base64 limit entirely
+            { type: 'image', source: { type: 'url', url: publicUrl } },
             { type: 'text', text: 'Lis cette page de livre et écris UNE seule phrase courte (15 mots max) qui résume de quoi parle cette page. Réponds uniquement avec cette phrase, sans ponctuation finale.' },
           ],
         }],
