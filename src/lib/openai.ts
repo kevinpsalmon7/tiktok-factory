@@ -82,17 +82,24 @@ export async function generateImage({
 
   const startedAt = Date.now()
 
-  // Portrait 9:16-ish format. gpt-image-2 supports 1024x1536 natively.
-  const response = await client.images.edit({
-    model,
-    // The OpenAI SDK accepts a single Uploadable or an array; pass the array
-    // when we have multiple references, or a single file otherwise.
-    image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
-    prompt: fullPrompt,
-    size: imageSize,
-    quality,
-    n: 1,
-  })
+  // images.edit requires at least one reference image; fall back to
+  // images.generate when no references are available for this template.
+  const response = imageFiles.length > 0
+    ? await client.images.edit({
+        model,
+        image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
+        prompt: fullPrompt,
+        size: imageSize,
+        quality,
+        n: 1,
+      })
+    : await client.images.generate({
+        model,
+        prompt: fullPrompt,
+        size: imageSize,
+        quality,
+        n: 1,
+      })
 
   const elapsedMs = Date.now() - startedAt
   const b64 = response.data?.[0]?.b64_json
