@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { randomUUID } from 'crypto'
 
 export const maxDuration = 60
 
@@ -30,14 +29,18 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const formData = await request.formData().catch(() => null)
-  if (!formData) return NextResponse.json({ error: 'Données de formulaire invalides' }, { status: 400 })
+  // Receive JSON — the image was already uploaded directly to Storage by the client
+  const body = await request.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Body JSON invalide' }, { status: 400 })
 
-  const templateId = formData.get('templateId') as string | null
-  const imageFile = formData.get('image') as File | null
+  const { templateId, storagePath, mimeType: rawMime } = body as {
+    templateId?: string
+    storagePath?: string
+    mimeType?: string
+  }
 
-  if (!templateId || !imageFile) {
-    return NextResponse.json({ error: 'templateId et image requis' }, { status: 400 })
+  if (!templateId || !storagePath) {
+    return NextResponse.json({ error: 'templateId et storagePath requis' }, { status: 400 })
   }
 
   // Fetch profile for anthropic_api_key
@@ -63,53 +66,36 @@ export async function POST(request: Request) {
 
   const nextPosition = existing && existing.length > 0 ? (existing[0].position + 1) : 0
 
-  // Upload image to Supabase Storage
-  const ext = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg'
-  const filename = `${randomUUID()}.${ext}`
-  const storagePath = `${user.id}/${templateId}/${filename}`
-
-  const arrayBuf = await imageFile.arrayBuffer()
-  const imageBytes = Buffer.from(arrayBuf)
-
-  const { error: uploadErr } = await supabase.storage
-    .from('template-pages')
-    .upload(storagePath, imageBytes, { contentType: imageFile.type || 'image/jpeg', upsert: false })
-
-  if (uploadErr) {
-    return NextResponse.json({ error: `Erreur upload: ${uploadErr.message}` }, { status: 500 })
-  }
-
-  // Generate summary with Claude
+  // Generate summary with Claude — fetch image from public Storage URL
   let summary = ''
   try {
-    const client = new Anthropic({ apiKey })
-    type MediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-    const mimeType = (imageFile.type || 'image/jpeg') as MediaType
-    const base64 = imageBytes.toString('base64')
+    const publicUrl = supabase.storage.from('template-pages').getPublicUrl(storagePath).data.publicUrl
+    const imgRes = await fetch(publicUrl)
+    if (imgRes.ok) {
+      const arrayBuf = await imgRes.arrayBuffer()
+      const imageBytes = Buffer.from(arrayBuf)
+      const base64 = imageBytes.toString('base64')
+      type MediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+      const mimeType = (rawMime || 'image/jpeg') as MediaType
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 128,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mimeType, data: base64 },
-            },
-            {
-              type: 'text',
-              text: 'Lis cette page de livre et écris UNE seule phrase courte (15 mots max) qui résume de quoi parle cette page. Réponds uniquement avec cette phrase, sans ponctuation finale.',
-            },
-          ],
-        },
-      ],
-    })
-    summary = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+      const client = new Anthropic({ apiKey })
+      const message = await client.messages.create({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 128,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+              { type: 'text', text: 'Lis cette page de livre et écris UNE seule phrase courte (15 mots max) qui résume de quoi parle cette page. Réponds uniquement avec cette phrase, sans ponctuation finale.' },
+            ],
+          },
+        ],
+      })
+      summary = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+    }
   } catch {
-    // Summary generation failure is non-fatal — page still gets saved
-    summary = ''
+    // Non-fatal — page saved without summary
   }
 
   // Insert into DB
@@ -120,7 +106,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       storage_path: storagePath,
       summary,
-      is_default: nextPosition === 0, // first page is default
+      is_default: nextPosition === 0,
       position: nextPosition,
     })
     .select()

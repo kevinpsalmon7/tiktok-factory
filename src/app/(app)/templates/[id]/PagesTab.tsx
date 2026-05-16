@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import type { TemplatePage } from '@/types/database'
 
 type PagesTabProps = {
@@ -45,6 +46,7 @@ export function PagesTab({ templateId, userId: _userId, anthropicApiKey: _anthro
     const fileArr = Array.from(files)
     setError(null)
     setUploading(true)
+    const supabase = createClient()
 
     for (const file of fileArr) {
       if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -56,14 +58,31 @@ export function PagesTab({ templateId, userId: _userId, anthropicApiKey: _anthro
         continue
       }
 
-      const fd = new FormData()
-      fd.append('templateId', templateId)
-      fd.append('image', file)
+      // 1. Upload directly to Supabase Storage from the browser (no server body size limit)
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const uuid = crypto.randomUUID()
+      const storagePath = `${templateId}/${uuid}.${ext}`
 
-      const res = await fetch('/api/pages', { method: 'POST', body: fd })
+      const { error: uploadErr } = await supabase.storage
+        .from('template-pages')
+        .upload(storagePath, file, { contentType: file.type, upsert: false })
+
+      if (uploadErr) {
+        setError(`Erreur upload : ${uploadErr.message}`)
+        continue
+      }
+
+      // 2. Call API with just the storage path — no image payload
+      const res = await fetch('/api/pages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId, storagePath, mimeType: file.type }),
+      })
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-        setError(body.error || 'Erreur lors de l\'upload')
+        setError(body.error || "Erreur lors de l'analyse")
+        // Clean up orphaned storage file
+        await supabase.storage.from('template-pages').remove([storagePath])
         continue
       }
     }
