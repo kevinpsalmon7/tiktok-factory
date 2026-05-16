@@ -285,7 +285,15 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
       if (j < 0 || j >= l.elements.length) return l
       const newEls = [...l.elements]
       ;[newEls[i], newEls[j]] = [newEls[j], newEls[i]]
-      return { ...l, elements: newEls }
+      // Keep zIndex values in sync with array order: re-assign them in sorted
+      // order so that position 0 (back) always has the smallest zIndex, and the
+      // last position (front) always has the largest. This ensures the Konva
+      // renderer (which sorts by zIndex) always matches the builder's layer order.
+      const zOrder = l.elements.map((e) => e.zIndex).sort((a, b) => a - b)
+      return {
+        ...l,
+        elements: newEls.map((el, idx) => ({ ...el, zIndex: zOrder[idx] })),
+      }
     })
   }
 
