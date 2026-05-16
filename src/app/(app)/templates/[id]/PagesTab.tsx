@@ -14,7 +14,7 @@ type PagesTabProps = {
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_SIZE_MB = 15
 
-export function PagesTab({ templateId, userId: _userId, anthropicApiKey: _anthropicApiKey }: PagesTabProps) {
+export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey }: PagesTabProps) {
   const [pages, setPages] = useState<TemplatePage[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -61,7 +61,7 @@ export function PagesTab({ templateId, userId: _userId, anthropicApiKey: _anthro
       // 1. Upload directly to Supabase Storage from the browser (no server body size limit)
       const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
       const uuid = crypto.randomUUID()
-      const storagePath = `${templateId}/${uuid}.${ext}`
+      const storagePath = `${userId}/${templateId}/${uuid}.${ext}`
 
       const { error: uploadErr } = await supabase.storage
         .from('template-pages')
