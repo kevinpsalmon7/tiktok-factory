@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star } from 'lucide-react'
+import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { TemplatePage } from '@/types/database'
 
@@ -22,6 +22,7 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [generatingId, setGeneratingId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadPages = useCallback(async () => {
@@ -114,7 +115,29 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
       setError(body.error || 'Erreur')
       return
     }
-    await loadPages()
+    // Update state locally — no full reload
+    setPages(prev => prev.map(p => ({ ...p, is_default: p.id === page.id })))
+  }
+
+  async function handleGenerateSummary(page: TemplatePage) {
+    setGeneratingId(page.id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/pages/${page.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regenerate: true }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        setError(body.error || 'Erreur lors de la génération')
+        return
+      }
+      const { page: updated } = await res.json()
+      setPages(prev => prev.map(p => p.id === page.id ? { ...p, summary: updated.summary } : p))
+    } finally {
+      setGeneratingId(null)
+    }
   }
 
   function startEdit(page: TemplatePage) {
@@ -268,7 +291,7 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
               </div>
 
               {/* Summary */}
-              <div className="p-2">
+              <div className="p-2 space-y-1.5">
                 {editingId === page.id ? (
                   <textarea
                     autoFocus
@@ -300,6 +323,18 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
                     )}
                   </button>
                 )}
+                {/* Generate summary button */}
+                <button
+                  onClick={() => handleGenerateSummary(page)}
+                  disabled={generatingId === page.id}
+                  title="Générer le résumé avec Claude"
+                  className="flex items-center gap-1 text-[10px] text-ink-500 hover:text-ink-900 transition disabled:opacity-50"
+                >
+                  {generatingId === page.id
+                    ? <Loader2 size={10} className="animate-spin" />
+                    : <Sparkles size={10} />}
+                  {generatingId === page.id ? 'Génération…' : 'Générer le résumé'}
+                </button>
               </div>
 
               {/* Default label */}
