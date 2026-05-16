@@ -37,6 +37,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { FontPicker } from '@/components/FontPicker'
 import { ReferencesPanel } from '@/components/TemplateBuilder/ReferencesPanel'
+import { PagesTab } from './PagesTab'
 import type {
   TemplateLayout,
   TemplateElement,
@@ -66,7 +67,7 @@ type InitialTemplate = {
   platforms: string[]
 }
 
-type Tab = 'design' | 'instructions' | 'references'
+type Tab = 'design' | 'instructions' | 'references' | 'pages'
 
 const HISTORY_LIMIT = 10
 
@@ -82,7 +83,13 @@ const ROLE_OPTIONS: { value: TextRole; label: string }[] = [
   { value: 'text', label: 'Texte' },
 ]
 
-export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTemplate }) {
+type TemplateEditorProps = {
+  initialTemplate: InitialTemplate
+  userId: string
+  anthropicApiKey: string | null
+}
+
+export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: TemplateEditorProps) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('design')
   const [name, setName] = useState(initialTemplate.name)
@@ -500,6 +507,9 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
         <TabButton active={tab === 'references'} onClick={() => setTab('references')}>
           Références visuelles
         </TabButton>
+        <TabButton active={tab === 'pages'} onClick={() => setTab('pages')}>
+          Pages
+        </TabButton>
       </div>
 
       {tab === 'design' ? (
@@ -732,9 +742,17 @@ export function TemplateEditor({ initialTemplate }: { initialTemplate: InitialTe
             />
           </div>
         </div>
-      ) : (
+      ) : tab === 'references' ? (
         <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
           <ReferencesPanel templateId={initialTemplate.id} />
+        </div>
+      ) : (
+        <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
+          <PagesTab
+            templateId={initialTemplate.id}
+            userId={userId}
+            anthropicApiKey={anthropicApiKey}
+          />
         </div>
       )}
     </div>
@@ -1544,6 +1562,14 @@ function ImageProperties({
             }`}
           >
             URL fixe
+          </button>
+          <button
+            onClick={() => onChange({ source: 'pages' })}
+            className={`flex-1 py-1.5 rounded-lg text-[10px] ${
+              element.source === 'pages' ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
+            }`}
+          >
+            Pages
           </button>
         </div>
       </div>

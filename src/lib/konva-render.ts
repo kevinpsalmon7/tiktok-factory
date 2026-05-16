@@ -290,7 +290,7 @@ async function addElement(
 
   if (el.type === 'image') {
     const i = el as ImageElement
-    const src = i.source === 'generated' ? backgroundUrl : i.assetUrl
+    const src = i.source === 'generated' || i.source === 'pages' ? backgroundUrl : i.assetUrl
     if (!src) return
 
     const img = await loadImage(src)

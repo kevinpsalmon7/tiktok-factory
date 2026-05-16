@@ -194,6 +194,15 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         .map((el: any) => el.slideType as string)
     )
 
+    // Detect slide types that use 'pages' source
+    const pagesImageSlideTypes = new Set(
+      (selectedTemplate.layout.elements ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((el: any) => el.type === 'image' && el.source === 'pages')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((el: any) => el.slideType as string)
+    )
+
     async function fetchImg(imgPrompt: string, slideIndex: number, slideType: string): Promise<string> {
       if (!imgPrompt) return ''
       const res = await fetch('/api/generate-image', {
@@ -252,9 +261,30 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
 
     if (stoppedRef.current.has(idx) || stopAllRef.current) throw new Error('cancelled')
 
+    // Resolve 'pages' source slides: pick the best book page for this carousel
+    let pageUrl: string | null = null
+    if (pagesImageSlideTypes.size > 0) {
+      try {
+        const pageRes = await fetch('/api/pages/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ templateId, slides }),
+          signal: ac.signal,
+        })
+        if (pageRes.ok) {
+          const pageData = await pageRes.json()
+          pageUrl = pageData.pageUrl || null
+        }
+      } catch {
+        // Non-fatal: if no page found, pageUrl stays null
+      }
+    }
+
     const updatedSlides: CarouselSlide[] = slides.map(s => ({
       ...s,
-      background_url: imageByType[s.slide_type] ?? undefined,
+      background_url: pagesImageSlideTypes.has(s.slide_type)
+        ? (pageUrl ?? undefined)
+        : (imageByType[s.slide_type] ?? undefined),
     }))
 
     // 4. Render + upload slides

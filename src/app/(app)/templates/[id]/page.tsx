@@ -27,14 +27,27 @@ export default async function TemplateBuilderPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: template } = await supabase
-    .from('templates')
-    .select('id, name, description, layout, style_guide, carousel_instructions, gemini_instructions, avatar_instructions, randomization_instructions, absolute_rules, platforms')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .single<TemplateRow>()
+  const [{ data: template }, { data: profile }] = await Promise.all([
+    supabase
+      .from('templates')
+      .select('id, name, description, layout, style_guide, carousel_instructions, gemini_instructions, avatar_instructions, randomization_instructions, absolute_rules, platforms')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single<TemplateRow>(),
+    supabase
+      .from('profiles')
+      .select('anthropic_api_key')
+      .eq('id', user.id)
+      .single<{ anthropic_api_key: string | null }>(),
+  ])
 
   if (!template) notFound()
 
-  return <TemplateEditor initialTemplate={template} />
+  return (
+    <TemplateEditor
+      initialTemplate={template}
+      userId={user.id}
+      anthropicApiKey={profile?.anthropic_api_key ?? null}
+    />
+  )
 }

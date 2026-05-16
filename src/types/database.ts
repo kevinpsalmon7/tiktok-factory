@@ -95,6 +95,32 @@ export interface Database {
           position?: number
         }
       }
+      template_pages: {
+        Row: {
+          id: string
+          template_id: string
+          user_id: string
+          storage_path: string
+          summary: string
+          is_default: boolean
+          position: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          template_id: string
+          user_id: string
+          storage_path: string
+          summary?: string
+          is_default?: boolean
+          position?: number
+        }
+        Update: {
+          summary?: string
+          is_default?: boolean
+          position?: number
+        }
+      }
       carousels: {
         Row: {
           id: string
@@ -215,9 +241,20 @@ export interface TextElement extends BaseElement {
 
 export interface ImageElement extends BaseElement {
   type: 'image'
-  source: 'generated' | 'asset' // Gemini-generated or fixed asset URL
+  source: 'generated' | 'asset' | 'pages' // Gemini-generated, fixed asset URL, or book page
   assetUrl?: string
   fit?: 'cover' | 'contain'
+}
+
+export interface TemplatePage {
+  id: string
+  template_id: string
+  user_id: string
+  storage_path: string
+  summary: string
+  is_default: boolean
+  position: number
+  created_at: string
 }
 
 export interface RectElement extends BaseElement {
