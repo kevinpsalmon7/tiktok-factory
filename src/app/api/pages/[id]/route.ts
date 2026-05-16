@@ -59,28 +59,34 @@ export async function PATCH(
     if (!apiKey) return NextResponse.json({ error: 'Clé API Anthropic manquante' }, { status: 400 })
 
     const publicUrl = supabase.storage.from('template-pages').getPublicUrl(pageRow.storage_path).data.publicUrl
+
+    const imgRes = await fetch(publicUrl)
+    if (!imgRes.ok) {
+      return NextResponse.json({ error: `Impossible de charger l'image (${imgRes.status})` }, { status: 500 })
+    }
+
+    const base64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64')
+    const contentType = (imgRes.headers.get('content-type') || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+
+    const client = new Anthropic({ apiKey })
     let newSummary = ''
     try {
-      const imgRes = await fetch(publicUrl)
-      if (imgRes.ok) {
-        const base64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64')
-        const contentType = imgRes.headers.get('content-type') || 'image/jpeg'
-        type MediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-        const client = new Anthropic({ apiKey })
-        const message = await client.messages.create({
-          model: 'claude-sonnet-4-5',
-          max_tokens: 128,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: contentType as MediaType, data: base64 } },
-              { type: 'text', text: 'Lis cette page de livre et écris UNE seule phrase courte (15 mots max) qui résume de quoi parle cette page. Réponds uniquement avec cette phrase, sans ponctuation finale.' },
-            ],
-          }],
-        })
-        newSummary = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-      }
-    } catch { /* non-fatal */ }
+      const message = await client.messages.create({
+        model: 'claude-haiku-4-5',
+        max_tokens: 64,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: contentType, data: base64 } },
+            { type: 'text', text: 'Lis cette page de livre et écris UNE seule phrase courte (15 mots max) qui résume de quoi parle cette page. Réponds uniquement avec cette phrase, sans ponctuation finale.' },
+          ],
+        }],
+      })
+      newSummary = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return NextResponse.json({ error: `Erreur Claude : ${msg}` }, { status: 500 })
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.from('template_pages') as any)
