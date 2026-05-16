@@ -77,7 +77,8 @@ export async function POST(request: Request) {
       messages: [{
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'url', url: publicUrl } },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { type: 'image', source: { type: 'url', url: publicUrl } as any },
           { type: 'text', text: 'Lis cette page de livre et écris UNE seule phrase courte (15 mots max) qui résume de quoi parle cette page. Réponds uniquement avec cette phrase, sans ponctuation finale.' },
         ],
       }],
