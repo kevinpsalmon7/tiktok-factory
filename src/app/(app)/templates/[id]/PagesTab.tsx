@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star, Sparkles, CheckSquare, Square } from 'lucide-react'
+import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star, Sparkles, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { TemplatePage } from '@/types/database'
 
@@ -24,6 +24,7 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
+  const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -154,22 +155,21 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
     })
   }
 
-  function toggleSelectAll() {
-    setSelected(prev => prev.size === pages.length ? new Set() : new Set(pages.map(p => p.id)))
+  function cancelSelection() {
+    setSelecting(false)
+    setSelected(new Set())
   }
 
   async function handleDeleteSelected() {
     if (selected.size === 0) return
-    if (!confirm(`Supprimer ${selected.size} page${selected.size > 1 ? 's' : ''} ?`)) return
     setDeleting(true)
     setError(null)
-    const ids = [...selected]
-    await Promise.all(ids.map(id =>
+    await Promise.all([...selected].map(id =>
       fetch(`/api/pages/${id}`, { method: 'DELETE' })
     ))
     setPages(prev => prev.filter(p => !selected.has(p.id)))
-    setSelected(new Set())
     setDeleting(false)
+    cancelSelection()
   }
 
   function startEdit(page: TemplatePage) {
@@ -297,25 +297,39 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
         </div>
       ) : (
         <>
-        {/* Selection toolbar */}
-        <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={toggleSelectAll}
-            className="flex items-center gap-1.5 text-xs text-ink-600 hover:text-ink-900 transition"
-          >
-            {selected.size === pages.length && pages.length > 0
-              ? <CheckSquare size={14} />
-              : <Square size={14} />}
-            {selected.size === pages.length && pages.length > 0 ? 'Tout désélectionner' : 'Tout sélectionner'}
-          </button>
-          {selected.size > 0 && (
+        {/* Toolbar — same pattern as GalleryGrid */}
+        <div className="flex items-center justify-between mb-4">
+          {selecting ? (
+            <>
+              <span className="text-sm text-ink-600">
+                {selected.size} sélectionnée{selected.size > 1 ? 's' : ''}
+              </span>
+              <div className="flex gap-2">
+                {selected.size > 0 && (
+                  <button
+                    onClick={handleDeleteSelected}
+                    disabled={deleting}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-full text-sm font-medium hover:bg-red-600 disabled:opacity-50 shadow-card"
+                  >
+                    <Trash2 size={13} />
+                    {deleting ? 'Suppression…' : `Supprimer (${selected.size})`}
+                  </button>
+                )}
+                <button
+                  onClick={cancelSelection}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-cream-100 text-ink-700 rounded-full text-sm font-medium hover:bg-cream-200"
+                >
+                  <X size={13} />
+                  Annuler
+                </button>
+              </div>
+            </>
+          ) : (
             <button
-              onClick={handleDeleteSelected}
-              disabled={deleting}
-              className="flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+              onClick={() => setSelecting(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-ink-900 text-white rounded-full text-sm font-medium hover:bg-ink-800 shadow-card"
             >
-              {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-              Supprimer {selected.size} page{selected.size > 1 ? 's' : ''}
+              Sélectionner
             </button>
           )}
         </div>
@@ -323,10 +337,13 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
           {pages.map((page) => (
             <div
               key={page.id}
-              className={`group relative flex flex-col rounded-xl2 overflow-hidden bg-cream-100 shadow-soft hover:shadow-card transition ${selected.has(page.id) ? 'ring-2 ring-ink-900' : ''}`}
+              className="group relative flex flex-col rounded-xl2 overflow-hidden bg-cream-100 shadow-soft hover:shadow-card transition"
             >
               {/* Thumbnail */}
-              <div className="relative aspect-[3/4] bg-cream-200">
+              <div
+                className={`relative aspect-[3/4] bg-cream-200 ${selecting ? 'cursor-pointer' : ''} ${selected.has(page.id) ? 'ring-4 ring-ink-900' : ''}`}
+                onClick={selecting ? () => toggleSelect(page.id) : undefined}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={getPublicUrl(page.storage_path)}
@@ -335,19 +352,12 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
                   draggable={false}
                 />
 
-                {/* Select checkbox */}
-                <button
-                  onClick={() => toggleSelect(page.id)}
-                  className={`absolute bottom-1.5 left-1.5 p-1 rounded-md transition ${
-                    selected.has(page.id)
-                      ? 'bg-ink-900 text-white opacity-100'
-                      : 'bg-white/80 text-ink-400 opacity-0 group-hover:opacity-100 hover:bg-ink-900 hover:text-white'
-                  }`}
-                >
-                  {selected.has(page.id)
-                    ? <CheckSquare size={14} />
-                    : <Square size={14} />}
-                </button>
+                {/* Selection overlay */}
+                {selecting && selected.has(page.id) && (
+                  <div className="absolute inset-0 bg-ink-900/30 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-ink-900 flex items-center justify-center text-white text-lg font-bold">✓</div>
+                  </div>
+                )}
 
                 {/* Default star badge */}
                 <button
