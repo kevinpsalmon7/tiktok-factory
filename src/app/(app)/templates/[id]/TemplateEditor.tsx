@@ -33,6 +33,7 @@ import {
   Unlock as UnlockIcon,
   Upload,
   Copy,
+  ChevronRight,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { FontPicker } from '@/components/FontPicker'
@@ -605,25 +606,29 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
           <div className="flex-1 flex flex-col gap-3 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-ink-600">Slide :</span>
-              {layout.slideTypes.map((st) => (
-                <SlideTypeTab
-                  key={st}
-                  type={st}
-                  active={activeSlideType === st}
-                  renaming={renamingType === st}
-                  renameValue={renameValue}
-                  canDelete={layout.slideTypes.length > 1}
-                  onSelect={() => setActiveSlideType(st)}
-                  onStartRename={() => {
-                    setRenamingType(st)
-                    setRenameValue(st)
-                  }}
-                  onChangeRename={(v) => setRenameValue(v)}
-                  onCommitRename={commitRename}
-                  onCancelRename={() => setRenamingType(null)}
-                  onDelete={() => deleteSlideType(st)}
-                  onDuplicate={() => duplicateSlideType(st)}
-                />
+              {layout.slideTypes.map((st, idx) => (
+                <div key={st} className="flex items-center gap-2">
+                  {idx > 0 && (
+                    <ChevronRight size={12} className="text-ink-400 shrink-0" />
+                  )}
+                  <SlideTypeTab
+                    type={st}
+                    active={activeSlideType === st}
+                    renaming={renamingType === st}
+                    renameValue={renameValue}
+                    canDelete={layout.slideTypes.length > 1}
+                    onSelect={() => setActiveSlideType(st)}
+                    onStartRename={() => {
+                      setRenamingType(st)
+                      setRenameValue(st)
+                    }}
+                    onChangeRename={(v) => setRenameValue(v)}
+                    onCommitRename={commitRename}
+                    onCancelRename={() => setRenamingType(null)}
+                    onDelete={() => deleteSlideType(st)}
+                    onDuplicate={() => duplicateSlideType(st)}
+                  />
+                </div>
               ))}
               <button
                 onClick={addSlideType}
