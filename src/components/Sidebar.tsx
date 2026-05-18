@@ -61,6 +61,14 @@ export function Sidebar() {
       >
         <LogOut size={18} />
       </button>
+
+      <Link
+        href="/privacy"
+        className="pb-1 pt-2 text-center text-[8px] uppercase tracking-[0.12em] text-white/20 hover:text-white/50 transition"
+        title="Privacy Policy"
+      >
+        Privacy
+      </Link>
     </aside>
   )
 }
