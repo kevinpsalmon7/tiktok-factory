@@ -28,11 +28,11 @@ export default function PrivacyPage() {
 
           <Section title="1. Introduction">
             <p>
-              {APP_NAME} (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is an AI-powered tool designed exclusively
-              for independent TikTok content creators. It enables individual creators to generate
-              carousel-format content for TikTok using AI-assisted writing and image generation.
-              {APP_NAME} is intended solely for personal, non-commercial use by independent authors
-              managing their own TikTok presence — not for agencies, brands, or automated bulk publishing.
+              {APP_NAME} (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is a subscription-based SaaS platform
+              designed exclusively for independent TikTok content creators. It enables individual
+              creators to generate carousel-format content for TikTok using AI-assisted writing
+              and image generation. {APP_NAME} is intended for independent authors managing their
+              own TikTok presence — not for agencies, brands, or automated bulk publishing operations.
             </p>
             <p>
               This Privacy Policy explains how we collect, use, store, and protect your personal
@@ -62,13 +62,21 @@ export default function PrivacyPage() {
             </SubSection>
             <SubSection title="2.3 API Keys">
               <p>
-                You may optionally store third-party API keys (Anthropic, OpenAI, Google Gemini) in
-                your profile. These keys are stored in our database and are used exclusively to make
-                API calls on your behalf. They are never displayed in plaintext after being saved, and
-                are never shared with any party other than the respective API provider.
+                All AI generation requests are processed using server-side API keys managed exclusively
+                by {APP_NAME}. Users do not provide, store, or manage their own API keys. Your prompts
+                and content are transmitted to our AI providers on your behalf and are never used for
+                any purpose other than generating the content you requested.
               </p>
             </SubSection>
-            <SubSection title="2.4 Pinterest Data">
+            <SubSection title="2.4 Payment Data">
+              <p>
+                When you subscribe to {APP_NAME}, payment is processed by a third-party payment
+                provider (such as Stripe). We do not collect or store your credit card number, bank
+                details, or any other sensitive financial information. We only receive a confirmation
+                of payment status and a subscription identifier from the payment provider.
+              </p>
+            </SubSection>
+            <SubSection title="2.5 Pinterest Data">
               <p>
                 If you connect your Pinterest account or use Pinterest image search features within
                 {APP_NAME}, we may access:
@@ -84,11 +92,11 @@ export default function PrivacyPage() {
                 analytics, or any purpose other than the immediate display and selection within the app.
               </p>
             </SubSection>
-            <SubSection title="2.5 Usage Logs">
+            <SubSection title="2.6 Usage Logs">
               <p>
                 We collect technical logs of generation requests (prompts sent, LLM responses, errors)
                 for debugging purposes. These logs are associated with your user account and are
-                retained for a limited period (see Section 6).
+                retained for a limited period (see Section 7).
               </p>
             </SubSection>
           </Section>
@@ -142,6 +150,11 @@ export default function PrivacyPage() {
                   <td>Pinterest API</td>
                   <td>Image search and retrieval</td>
                   <td>Search queries you enter; your Pinterest access token</td>
+                </tr>
+                <tr>
+                  <td>Stripe (or equivalent)</td>
+                  <td>Subscription payment processing</td>
+                  <td>Email address, subscription status — no card data stored by us</td>
                 </tr>
               </tbody>
             </table>
@@ -240,15 +253,16 @@ export default function PrivacyPage() {
 
           <Section title="10. Eligibility and Age Restriction">
             <p>
-              {APP_NAME} is intended exclusively for independent TikTok content creators who are
-              at least 18 years of age (or the age of majority in their jurisdiction). The service
-              is not directed at minors. We do not knowingly collect personal information from anyone
-              under 18. If you believe a minor has registered an account, please contact us and we
-              will delete it promptly.
+              {APP_NAME} is intended for independent TikTok content creators who are at least
+              18 years of age (or the age of majority in their jurisdiction). The service is not
+              directed at minors. We do not knowingly collect personal information from anyone under
+              18. If you believe a minor has registered an account, please contact us and we will
+              delete it promptly.
             </p>
             <p>
-              By using {APP_NAME}, you confirm that you are an independent individual creator and
-              not acting on behalf of an agency, corporation, or automated content operation.
+              By subscribing to {APP_NAME}, you confirm that you are an independent individual
+              creator managing your own TikTok presence, and not acting on behalf of an agency,
+              corporation, or automated bulk content operation.
             </p>
           </Section>
 
