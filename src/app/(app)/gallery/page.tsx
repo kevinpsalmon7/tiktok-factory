@@ -21,9 +21,9 @@ export default async function GalleryPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="font-display text-4xl font-semibold text-ink-900">Galerie</h1>
+        <h1 className="font-display text-4xl font-semibold text-ink-900">Gallery</h1>
         <p className="text-ink-600 mt-2">
-          Tous vos carousels générés, du plus récent au plus ancien.
+          All your generated carousels, newest first.
         </p>
       </div>
 
@@ -33,10 +33,10 @@ export default async function GalleryPage() {
             <Images size={32} className="text-ink-900" />
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink-900 mb-2">
-            Galerie vide
+            Empty gallery
           </h2>
           <p className="text-ink-600 max-w-md mx-auto">
-            Générez votre premier carousel pour le voir apparaître ici.
+            Generate your first carousel to see it appear here.
           </p>
         </div>
       ) : (

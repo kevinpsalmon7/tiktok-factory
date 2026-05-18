@@ -33,7 +33,7 @@ export default async function TemplatesPage() {
         <div>
           <h1 className="font-display text-4xl font-semibold text-ink-900">Templates</h1>
           <p className="text-ink-600 mt-2">
-            Construisez vos templates visuels avec un éditeur drag &amp; drop.
+            Build your visual templates with a drag &amp; drop editor.
           </p>
         </div>
         <CreateTemplateButton />
@@ -45,11 +45,11 @@ export default async function TemplatesPage() {
             <LayoutTemplate size={32} className="text-ink-900" />
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink-900 mb-2">
-            Pas encore de template
+            No templates yet
           </h2>
           <p className="text-ink-600 mb-6 max-w-md mx-auto">
-            Créez votre premier template en partant de zéro, ou utilisez le modèle
-            ADHD Or Just Me pour démarrer rapidement.
+            Create your first template from scratch, or use the ADHD Or Just Me
+            model to get started quickly.
           </p>
           <CreateTemplateButton variant="primary" />
         </div>

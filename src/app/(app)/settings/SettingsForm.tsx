@@ -54,7 +54,7 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
 
   return (
     <div className="space-y-4">
-      <Section title="Profil" icon={<User size={16} />} color="bg-pastel-pink">
+      <Section title="Profile" icon={<User size={16} />} color="bg-pastel-pink">
         <div className="flex items-center gap-4">
           {profile.avatar_url ? (
             <Image
@@ -70,17 +70,17 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
             </div>
           )}
           <div className="flex-1">
-            <label className="text-xs text-ink-600 mb-1 block">Nom affiché</label>
+            <label className="text-xs text-ink-600 mb-1 block">Display name</label>
             <input
               className="input"
               value={profile.full_name}
               onChange={(e) => update('full_name', e.target.value)}
-              placeholder="Votre nom"
+              placeholder="Your name"
             />
           </div>
         </div>
         <div className="mt-3">
-          <label className="text-xs text-ink-600 mb-1 block">Email</label>
+          <label className="text-xs text-ink-600 mb-1 block">Email address</label>
           <input
             className="input bg-cream-50 text-ink-600"
             value={profile.email}
@@ -90,38 +90,38 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
       </Section>
 
       <Section
-        title="Instructions globales"
+        title="Global instructions"
         icon={<Sparkles size={16} />}
         color="bg-pastel-mint"
-        description="Règles prioritaires appliquées à toutes les générations."
+        description="Priority rules applied to all generations."
       >
         <textarea
           className="textarea min-h-[140px]"
-          placeholder="Ex: n'utilise jamais le tiret cadratin, reste en anglais..."
+          placeholder="Ex: never use em dash, always write in English..."
           value={profile.master_instructions}
           onChange={(e) => update('master_instructions', e.target.value)}
         />
       </Section>
 
       <Section
-        title="Avatar / cible"
+        title="Avatar / audience"
         icon={<User size={16} />}
         color="bg-pastel-lemon"
-        description="Décrivez la personne ou la cible pour qui vous écrivez."
+        description="Describe the person or audience you are writing for."
       >
         <textarea
           className="textarea min-h-[140px]"
-          placeholder="Ex: femmes adultes TDAH diagnostiquées tardivement, niveau culture générale élevé..."
+          placeholder="Ex: adult women with ADHD diagnosed late, high general knowledge..."
           value={profile.avatar_instructions}
           onChange={(e) => update('avatar_instructions', e.target.value)}
         />
       </Section>
 
       <Section
-        title="Clés API"
+        title="API Keys"
         icon={<KeyRound size={16} />}
         color="bg-pastel-lavender"
-        description="Nécessaires pour la génération. Elles ne sont jamais affichées après enregistrement."
+        description="Required for generation. Never displayed after saving."
       >
         <div className="space-y-3">
           <div>
@@ -145,7 +145,7 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
             />
           </div>
           <div>
-            <label className="text-xs text-ink-600 mb-1 block">Google Gemini <span className="text-ink-400">(non utilisé pour l&apos;instant)</span></label>
+            <label className="text-xs text-ink-600 mb-1 block">Google Gemini <span className="text-ink-400">(not used yet)</span></label>
             <input
               className="input font-mono text-xs"
               type="password"
@@ -160,7 +160,7 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
       <div className="sticky bottom-4 flex justify-end gap-2 z-10">
         {saved && (
           <div className="px-4 py-2.5 rounded-full bg-pastel-mint text-ink-900 text-sm font-medium shadow-card">
-            ✓ Enregistré
+            ✓ Saved
           </div>
         )}
         <button
@@ -169,7 +169,7 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-ink-900 text-white rounded-full text-sm font-medium hover:bg-ink-800 disabled:opacity-50 shadow-card"
         >
           <Save size={14} />
-          {saving ? 'Enregistrement...' : 'Enregistrer'}
+          {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
     </div>

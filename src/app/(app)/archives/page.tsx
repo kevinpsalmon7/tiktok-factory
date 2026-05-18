@@ -23,7 +23,7 @@ export default async function ArchivesPage() {
       <div>
         <h1 className="font-display text-4xl font-semibold text-ink-900">Archives</h1>
         <p className="text-ink-600 mt-2">
-          Vos carousels archivés. Restaurez-les pour les retrouver dans la galerie.
+          Your archived carousels. Restore them to find them back in the gallery.
         </p>
       </div>
 
@@ -33,10 +33,10 @@ export default async function ArchivesPage() {
             <Archive size={32} className="text-ink-900" />
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink-900 mb-2">
-            Aucun carousel archivé
+            No archived carousels
           </h2>
           <p className="text-ink-600 max-w-md mx-auto">
-            Archivez un carousel depuis la galerie pour le retrouver ici.
+            Archive a carousel from the gallery to find it here.
           </p>
         </div>
       ) : (

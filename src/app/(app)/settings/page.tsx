@@ -26,9 +26,9 @@ export default async function SettingsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="font-display text-4xl font-semibold text-ink-900">Paramètres</h1>
+        <h1 className="font-display text-4xl font-semibold text-ink-900">Settings</h1>
         <p className="text-ink-600 mt-2">
-          Configurez votre profil, vos instructions et vos clés API.
+          Configure your profile, instructions and API keys.
         </p>
       </div>
 

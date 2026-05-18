@@ -407,7 +407,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           const idx = round[i]
           if (r.status === 'rejected') {
             const errObj = r.reason as Error
-            const message = errObj.message || 'Erreur inconnue'
+            const message = errObj.message || 'Unknown error'
             // If user cancelled, leave it as 'cancelled' (already set in cancelOne)
             if (stoppedRef.current.has(idx) || message === 'cancelled') {
               return
@@ -426,7 +426,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
               updateCarousel(idx, {
                 status: 'queued',
                 attempts: newAttempts,
-                error: `Tentative ${newAttempts}/${MAX_ATTEMPTS} échouée — relance…`,
+                error: `Attempt ${newAttempts}/${MAX_ATTEMPTS} failed — retrying…`,
                 id: undefined,
                 abortController: undefined,
               })
@@ -483,7 +483,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
                 : 'border-transparent text-ink-600 hover:text-ink-900'
             }`}
           >
-            {t === 'creation' ? 'Création' : 'Processus'}
+            {t === 'creation' ? 'Creation' : 'Process'}
             {t === 'processus' && totalCarousels > 0 && (
               <span className={`ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] ${loading ? 'bg-pastel-lemon' : 'bg-pastel-mint'}`}>
                 {loading ? '…' : '✓'}
@@ -493,72 +493,9 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         ))}
       </div>
 
-      {/* Tab: Création */}
+      {/* Tab: Creation */}
       {tab === 'creation' && (
         <div className="p-6 space-y-5">
-          {/* Text LLM */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-ink-600">Textes</label>
-            <div className="flex gap-2">
-              {([
-                { value: 'gemini',  label: 'Gemini' },
-                { value: 'claude',  label: 'Claude' },
-                { value: 'chatgpt', label: 'ChatGPT' },
-              ] as const).map(({ value, label }) => (
-                <button key={value}
-                  onClick={() => { setLlm(value); localStorage.setItem('preferredLlm', value) }}
-                  className={`px-4 py-2 rounded-full text-sm transition ${llm === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Image LLM + quality */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-ink-600">Images</label>
-            <div className="flex gap-2">
-              {([
-                { value: 'openai', label: 'GPT Image 2' },
-                { value: 'gemini', label: 'Gemini' },
-              ] as const).map(({ value, label }) => (
-                <button key={value}
-                  onClick={() => { setImageLlm(value); localStorage.setItem('preferredImageLlm', value) }}
-                  className={`px-4 py-2 rounded-full text-sm transition ${imageLlm === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            {/* Format */}
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[11px] text-ink-500">Format</span>
-              {([
-                { value: '1:1',  label: '1:1' },
-                { value: '9:16', label: '9:16' },
-              ] as const).map(({ value, label }) => (
-                <button key={value}
-                  onClick={() => { setImageFormat(value); localStorage.setItem('preferredImageFormat', value) }}
-                  className={`px-3 py-1.5 rounded-full text-xs transition ${imageFormat === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            {/* Quality */}
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[11px] text-ink-500">Qualité</span>
-              {([
-                { value: 'low',    label: 'Rapide' },
-                { value: 'medium', label: 'Standard' },
-                { value: 'high',   label: 'HD' },
-              ] as const).map(({ value, label }) => (
-                <button key={value}
-                  onClick={() => { setImageQuality(value); localStorage.setItem('preferredImageQuality', value) }}
-                  className={`px-3 py-1.5 rounded-full text-xs transition ${imageQuality === value ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
           <div>
             <label className="block text-xs text-ink-600 mb-2">Template</label>
             <div className="flex gap-2 flex-wrap">
@@ -572,10 +509,10 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           </div>
 
           <div>
-            <label className="block text-xs text-ink-600 mb-2">Idée / instruction (optionnel)</label>
+            <label className="block text-xs text-ink-600 mb-2">Idea / instruction (optional)</label>
             <textarea
               className="textarea min-h-[100px]"
-              placeholder="Ex: un carousel sur le syndrome de l'imposteur chez les femmes TDAH..."
+              placeholder="E.g.: a carousel about imposter syndrome in women with ADHD..."
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
               disabled={loading}
@@ -591,7 +528,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           <button onClick={handleGenerate} disabled={loading}
             className="inline-flex items-center gap-2 px-5 py-3 bg-ink-900 text-white rounded-full text-sm font-medium hover:bg-ink-800 disabled:opacity-50 shadow-card">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            {loading ? 'Génération en cours…' : 'Générer'}
+            {loading ? 'Generating…' : 'Generate'}
           </button>
         </div>
       )}
@@ -608,7 +545,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           {carouselStates.length > 0 && (
             <>
               <div className="flex items-center justify-between text-xs text-ink-600 mb-1">
-                <span>{totalCarousels} carousel{totalCarousels > 1 ? 's' : ''} en parallèle</span>
+                <span>{totalCarousels} carousel{totalCarousels > 1 ? 's' : ''} in parallel</span>
                 <div className="flex items-center gap-3">
                   <span className="font-medium">{finishedCount}/{totalCarousels}</span>
                   {anyInProgress && (
@@ -616,7 +553,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
                       onClick={cancelAll}
                       className="text-red-600 hover:text-red-700 inline-flex items-center gap-1 font-medium"
                     >
-                      <StopCircle size={13} /> Tout arrêter
+                      <StopCircle size={13} /> Stop all
                     </button>
                   )}
                 </div>
@@ -637,7 +574,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
                     {(c.status === 'text' || c.status === 'images' || c.status === 'rendering' || c.status === 'queued') && (
                       <button
                         onClick={() => cancelOne(c.idx)}
-                        title="Arrêter ce carousel"
+                        title="Stop this carousel"
                         className="text-ink-400 hover:text-red-600 transition flex-shrink-0"
                       >
                         <StopCircle size={18} />
@@ -650,7 +587,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           )}
 
           {carouselStates.length === 0 && !globalError && (
-            <p className="text-sm text-ink-600/60 text-center py-8">Lance une génération pour voir le processus ici.</p>
+            <p className="text-sm text-ink-600/60 text-center py-8">Start a generation to see the process here.</p>
           )}
 
           {doneIds.length > 0 && !loading && (
@@ -698,8 +635,8 @@ function ImageUploadZone({
   return (
     <div className="space-y-2">
       <label className="block text-xs text-ink-600">
-        Images de référence
-        <span className="ml-1 text-ink-400">(optionnel — {images.length}/{MAX_IMAGES})</span>
+        Reference images
+        <span className="ml-1 text-ink-400">(optional — {images.length}/{MAX_IMAGES})</span>
       </label>
 
       {/* Thumbnail strip */}
@@ -740,7 +677,7 @@ function ImageUploadZone({
           `}
         >
           <ImagePlus size={15} />
-          <span>Glisser des captures ou cliquer pour parcourir</span>
+          <span>Drag images or click to browse</span>
         </div>
       )}
 
@@ -758,13 +695,13 @@ function ImageUploadZone({
 
 function statusLabel(status: CarouselStatus): string {
   switch (status) {
-    case 'queued': return 'En attente…'
-    case 'text': return 'Génération des textes…'
-    case 'images': return 'Génération des images…'
-    case 'rendering': return 'Composition des slides…'
-    case 'done': return 'Terminé'
-    case 'error': return 'Erreur'
-    case 'cancelled': return 'Annulé'
+    case 'queued': return 'Waiting…'
+    case 'text': return 'Generating text…'
+    case 'images': return 'Generating images…'
+    case 'rendering': return 'Composing slides…'
+    case 'done': return 'Done'
+    case 'error': return 'Error'
+    case 'cancelled': return 'Cancelled'
   }
 }
 

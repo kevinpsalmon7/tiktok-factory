@@ -79,9 +79,9 @@ function roleDefaults(role: TextRole, baseSize: number): Pick<TextParagraph, 'fo
 }
 
 const ROLE_OPTIONS: { value: TextRole; label: string }[] = [
-  { value: 'title', label: 'Titre' },
-  { value: 'subtitle', label: 'Sous-titre' },
-  { value: 'text', label: 'Texte' },
+  { value: 'title', label: 'Title' },
+  { value: 'subtitle', label: 'Subtitle' },
+  { value: 'text', label: 'Text' },
 ]
 
 type TemplateEditorProps = {
@@ -342,7 +342,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
     if (layout.slideTypes.length <= 1) return
     if (
       !confirm(
-        `Supprimer le type "${st}" ? Tous les éléments rattachés à ce type seront supprimés.`
+        `Delete slide type "${st}"? All elements attached to this type will be removed.`
       )
     )
       return
@@ -385,7 +385,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
       return
     }
     if (layout.slideTypes.includes(newName)) {
-      alert('Ce nom existe déjà')
+      alert('This name already exists')
       return
     }
     pushLayout((l) => ({
@@ -421,12 +421,12 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } else {
-      alert('Erreur : ' + error.message)
+      alert('Error: ' + error.message)
     }
   }
 
   async function handleDelete() {
-    if (!confirm(`Supprimer le template "${name}" ?`)) return
+    if (!confirm(`Delete template "${name}"?`)) return
     setDeleting(true)
     const supabase = createClient()
     await supabase.from('templates').delete().eq('id', initialTemplate.id)
@@ -466,7 +466,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             onClick={undo}
             disabled={!canUndo}
             className="p-2.5 rounded-full bg-white shadow-soft hover:shadow-card disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Annuler (Cmd+Z)"
+            title="Undo (Cmd+Z)"
           >
             <Undo2 size={15} />
           </button>
@@ -474,7 +474,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             onClick={redo}
             disabled={!canRedo}
             className="p-2.5 rounded-full bg-white shadow-soft hover:shadow-card disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Rétablir (Cmd+Shift+Z)"
+            title="Redo (Cmd+Shift+Z)"
           >
             <Redo2 size={15} />
           </button>
@@ -482,13 +482,13 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             onClick={handleDelete}
             disabled={deleting}
             className="p-2.5 rounded-full bg-white text-red-600 shadow-soft hover:shadow-card hover:bg-red-50"
-            title="Supprimer"
+            title="Delete"
           >
             <Trash2 size={16} />
           </button>
           {saved && (
             <div className="px-3 py-2 rounded-full bg-pastel-mint text-ink-900 text-xs font-medium">
-              ✓ Enregistré
+              ✓ Saved
             </div>
           )}
           <button
@@ -497,7 +497,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-ink-900 text-white rounded-full text-sm font-medium hover:bg-ink-800 disabled:opacity-50"
           >
             <Save size={14} />
-            {saving ? '...' : 'Enregistrer'}
+            {saving ? '...' : 'Save'}
           </button>
         </div>
       </div>
@@ -511,7 +511,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
           Instructions
         </TabButton>
         <TabButton active={tab === 'references'} onClick={() => setTab('references')}>
-          Références visuelles
+          Visual references
         </TabButton>
         <TabButton active={tab === 'pages'} onClick={() => setTab('pages')}>
           Pages
@@ -525,17 +525,17 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             <div>
               <div className="flex items-center justify-between px-2 py-1 mb-1">
                 <span className="text-xs font-medium uppercase tracking-wide text-ink-600">
-                  Éléments
+                  Elements
                 </span>
               </div>
               <div className="flex gap-1">
-                <IconButton onClick={() => addElement('text')} title="Texte">
+                <IconButton onClick={() => addElement('text')} title="Text">
                   <Type size={14} />
                 </IconButton>
                 <IconButton onClick={() => addElement('image')} title="Image">
                   <ImageIcon size={14} />
                 </IconButton>
-                <IconButton onClick={() => addElement('rect')} title="Forme">
+                <IconButton onClick={() => addElement('rect')} title="Shape">
                   <Square size={14} />
                 </IconButton>
               </div>
@@ -554,7 +554,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
                 ))}
                 {visibleElementsForActiveType.length === 0 && (
                   <div className="px-2 py-3 text-[10px] text-ink-600/50 text-center">
-                    Aucun élément sur ce type de slide
+                    No elements on this slide type
                   </div>
                 )}
               </div>
@@ -563,43 +563,43 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             {/* Padding / safe area */}
             <div className="border-t border-cream-100 pt-3">
               <div className="text-xs font-medium uppercase tracking-wide text-ink-600 px-2 mb-2">
-                Espace intérieur
+                Padding
               </div>
               <div className="grid grid-cols-2 gap-2 px-1">
                 <PaddingField
-                  label="Haut"
+                  label="Top"
                   value={layout.padding?.top || 0}
                   onChange={(v) => updatePadding('top', v)}
                 />
                 <PaddingField
-                  label="Droite"
+                  label="Right"
                   value={layout.padding?.right || 0}
                   onChange={(v) => updatePadding('right', v)}
                 />
                 <PaddingField
-                  label="Bas"
+                  label="Bottom"
                   value={layout.padding?.bottom || 0}
                   onChange={(v) => updatePadding('bottom', v)}
                 />
                 <PaddingField
-                  label="Gauche"
+                  label="Left"
                   value={layout.padding?.left || 0}
                   onChange={(v) => updatePadding('left', v)}
                 />
               </div>
               <p className="text-[10px] text-ink-600/60 px-2 mt-2">
-                Guides violets sur le canvas
+                Purple guides on the canvas
               </p>
             </div>
 
             {/* Background color */}
             <div className="border-t border-cream-100 pt-3">
               <div className="text-xs font-medium uppercase tracking-wide text-ink-600 px-2 mb-2">
-                Fond
+                Background
               </div>
               <div className="px-1">
                 <ColorField
-                  label="Couleur de fond"
+                  label="Background color"
                   value={layout.backgroundColor || '#ffffff'}
                   onChange={(v) => pushLayout((l) => ({ ...l, backgroundColor: v }))}
                 />
@@ -610,10 +610,10 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             {layout.slideTypes.some(st => st === 'content' || st.startsWith('content')) && (
               <div className="border-t border-cream-100 pt-3">
                 <div className="text-xs font-medium uppercase tracking-wide text-ink-600 px-2 mb-1">
-                  Génération
+                  Generation
                 </div>
                 <p className="text-[10px] text-ink-600/60 px-2 mb-2">
-                  Slides &laquo;&nbsp;content&nbsp;&raquo; à générer
+                  &ldquo;content&rdquo; slides to generate
                 </p>
                 <div className="grid grid-cols-2 gap-2 px-1">
                   <PaddingField
@@ -652,7 +652,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
           {/* Center: canvas */}
           <div className="flex-1 flex flex-col gap-3 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-ink-600">Slide :</span>
+              <span className="text-xs text-ink-600">Slide:</span>
               {layout.slideTypes.map((st, idx) => (
                 <div key={st} className="flex items-center gap-2">
                   {idx > 0 && (
@@ -680,7 +680,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
               <button
                 onClick={addSlideType}
                 className="w-7 h-7 rounded-full bg-white hover:bg-cream-100 shadow-soft flex items-center justify-center"
-                title="Ajouter un type de slide"
+                title="Add slide type"
               >
                 <Plus size={14} />
               </button>
@@ -691,7 +691,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
                     ? 'bg-ink-900 text-white'
                     : 'bg-white text-ink-700 hover:bg-cream-100'
                 }`}
-                title={snapEnabled ? 'Désactiver l\'aimant' : 'Activer l\'aimant (snap)'}
+                title={snapEnabled ? 'Disable snap' : 'Enable snap'}
               >
                 <Magnet size={14} />
               </button>
@@ -702,7 +702,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
                     ? 'bg-ink-900 text-white'
                     : 'bg-white text-ink-700 hover:bg-cream-100'
                 }`}
-                title={showGuides ? 'Masquer les guides' : 'Afficher les guides'}
+                title={showGuides ? 'Hide guides' : 'Show guides'}
               >
                 {showGuides ? <Eye size={14} /> : <EyeOff size={14} />}
               </button>
@@ -736,7 +736,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-ink-600/60 text-sm text-center">
                 <FileText size={32} className="mb-2 opacity-40" />
-                Sélectionnez un élément pour modifier ses propriétés
+                Select an element to edit its properties
               </div>
             )}
           </div>
@@ -747,8 +747,8 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             <div>
               <h2 className="font-display text-xl font-semibold mb-1">Instructions</h2>
               <p className="text-sm text-ink-600">
-                Définissez le contexte et les consignes transmis à l&apos;IA lors de la génération.
-                Chaque section accepte un fichier PDF, .txt ou .md.
+                Define the context and guidelines sent to the AI during generation.
+                Each section accepts a PDF, .txt or .md file.
               </p>
             </div>
             <InstructionBudgetGauge
@@ -757,38 +757,38 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
           </div>
           <div className="space-y-8">
             <InstructionSection
-              title="Règles impératives"
-              subtitle="Règles que l'IA ne peut jamais violer. Priorité maximale, juste après les instructions master du dashboard."
+              title="Mandatory rules"
+              subtitle="Rules the AI can never violate. Highest priority, right after the master instructions in settings."
               value={absoluteRules}
               onChange={setAbsoluteRules}
             />
             <InstructionSection
-              title="Randomisation"
-              subtitle={`Choix aléatoires injectés à chaque génération. Syntaxe : [[option A | option B (40%) | option C]]. Contrôle le type de carrousel, la couleur de fond, les détails des images, etc.`}
+              title="Randomization"
+              subtitle={`Random choices injected on each generation. Syntax: [[option A | option B (40%) | option C]]. Controls carousel type, background color, image details, etc.`}
               value={randomizationInstructions}
               onChange={setRandomizationInstructions}
             />
             <InstructionSection
-              title="Instructions générales"
-              subtitle="Consignes de structure, nombre de slides, contraintes de génération."
+              title="General instructions"
+              subtitle="Structure guidelines, slide count, generation constraints."
               value={carouselInstructions}
               onChange={setCarouselInstructions}
             />
             <InstructionSection
               title="Avatar"
-              subtitle="Profil du persona : voix, ton, valeurs, histoire."
+              subtitle="Persona profile: voice, tone, values, story."
               value={avatarInstructions}
               onChange={setAvatarInstructions}
             />
             <InstructionSection
-              title="Style d&apos;écriture"
-              subtitle="Règles de style, ponctuation, registre de langue."
+              title="Writing style"
+              subtitle="Style rules, punctuation, language register."
               value={styleGuide}
               onChange={setStyleGuide}
             />
             <InstructionSection
-              title="Style artistique"
-              subtitle="Directives visuelles pour les images générées par Gemini."
+              title="Artistic style"
+              subtitle="Visual directives for AI-generated images."
               value={geminiInstructions}
               onChange={setGeminiInstructions}
             />
@@ -937,7 +937,7 @@ function SlideTypeTab({
         <button
           onClick={onCancelRename}
           className="p-1 rounded-full hover:bg-cream-200"
-          title="Annuler"
+          title="Cancel"
         >
           <X size={12} />
         </button>
@@ -956,14 +956,14 @@ function SlideTypeTab({
       <button
         onClick={onStartRename}
         className={`px-1.5 py-1 ${active ? 'hover:bg-ink-800' : 'hover:bg-cream-100'}`}
-        title="Renommer"
+        title="Rename"
       >
         <Pencil size={10} />
       </button>
       <button
         onClick={onDuplicate}
         className={`px-1.5 py-1 ${active ? 'hover:bg-ink-800' : 'hover:bg-cream-100'}`}
-        title="Dupliquer ce slide type"
+        title="Duplicate this slide type"
       >
         <Copy size={10} />
       </button>
@@ -1003,7 +1003,7 @@ function LayerItem({
       ? roleLabel((element as TextElement).role)
       : element.type === 'image'
       ? 'Image'
-      : 'Forme'
+      : 'Shape'
 
   return (
     <div
@@ -1020,7 +1020,7 @@ function LayerItem({
           onToggleLock()
         }}
         className="p-0.5 hover:bg-white/50 rounded"
-        title={element.locked ? 'Déverrouiller' : 'Verrouiller'}
+        title={element.locked ? 'Unlock' : 'Lock'}
       >
         {element.locked ? (
           <LockIcon size={12} className="text-ink-900" />
@@ -1062,11 +1062,11 @@ function LayerItem({
 function roleLabel(role: TextRole): string {
   switch (role) {
     case 'title':
-      return 'Titre'
+      return 'Title'
     case 'subtitle':
-      return 'Sous-titre'
+      return 'Subtitle'
     case 'text':
-      return 'Texte'
+      return 'Text'
     default:
       return role
   }
@@ -1091,41 +1091,83 @@ function PropertiesPanel({
 
   const btnBase = 'flex-1 flex items-center justify-center p-1.5 rounded-lg border border-ink-200 hover:bg-cream-100 transition'
 
+  const ASPECT_RATIOS = [
+    { label: '1:1', value: '1:1' },
+    { label: '16:9', value: '16:9' },
+    { label: '9:16', value: '9:16' },
+    { label: '3:2', value: '3:2' },
+    { label: '4:3', value: '4:3' },
+  ]
+
   return (
     <div className="space-y-3 text-xs">
       <div className="text-[10px] uppercase tracking-wide text-ink-600 font-medium">
         {element.type}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField label="X" value={element.x} onChange={(v) => onChange({ x: v })} />
-        <NumberField label="Y" value={element.y} onChange={(v) => onChange({ y: v })} />
-        <NumberField label="W" value={element.width} onChange={(v) => onChange({ width: v })} />
-        <NumberField label="H" value={element.height} onChange={(v) => onChange({ height: v })} />
-      </div>
+      {element.type === 'image' ? (
+        <div>
+          <div className="text-[10px] text-ink-600 uppercase tracking-wide mb-1.5">Aspect ratio</div>
+          <div className="flex flex-wrap gap-1">
+            {ASPECT_RATIOS.map(({ label, value }) => {
+              const [wPart, hPart] = value.split(':').map(Number)
+              const isActive = (element as ImageElement).aspectRatio === value
+              return (
+                <button
+                  key={value}
+                  onClick={() => {
+                    const newHeight = Math.round(element.width * hPart / wPart)
+                    onChange({ aspectRatio: value, height: newHeight } as Partial<ImageElement>)
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-[10px] transition ${
+                    isActive ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700 hover:bg-cream-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+            {(element as ImageElement).aspectRatio && (
+              <button
+                onClick={() => onChange({ aspectRatio: undefined } as Partial<ImageElement>)}
+                className="px-2.5 py-1 rounded-full text-[10px] bg-cream-100 text-ink-500 hover:bg-red-50 hover:text-red-600 transition"
+              >
+                Free
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label="X" value={element.x} onChange={(v) => onChange({ x: v })} />
+          <NumberField label="Y" value={element.y} onChange={(v) => onChange({ y: v })} />
+          <NumberField label="W" value={element.width} onChange={(v) => onChange({ width: v })} />
+          <NumberField label="H" value={element.height} onChange={(v) => onChange({ height: v })} />
+        </div>
+      )}
 
       {/* Alignment buttons */}
       <div className="space-y-1.5">
-        <div className="text-[10px] text-ink-600 uppercase tracking-wide">Alignement</div>
+        <div className="text-[10px] text-ink-600 uppercase tracking-wide">Alignment</div>
         <div className="flex gap-1">
-          <button className={btnBase} title="Aligner à gauche" onClick={() => alignH(0)}>
+          <button className={btnBase} title="Align left" onClick={() => alignH(0)}>
             <AlignStartVertical size={12} />
           </button>
-          <button className={btnBase} title="Centrer horizontalement" onClick={() => alignH((CW - w) / 2)}>
+          <button className={btnBase} title="Center horizontally" onClick={() => alignH((CW - w) / 2)}>
             <AlignCenterVertical size={12} />
           </button>
-          <button className={btnBase} title="Aligner à droite" onClick={() => alignH(CW - w)}>
+          <button className={btnBase} title="Align right" onClick={() => alignH(CW - w)}>
             <AlignEndVertical size={12} />
           </button>
         </div>
         <div className="flex gap-1">
-          <button className={btnBase} title="Aligner en haut" onClick={() => alignV(0)}>
+          <button className={btnBase} title="Align top" onClick={() => alignV(0)}>
             <AlignStartHorizontal size={12} />
           </button>
-          <button className={btnBase} title="Centrer verticalement" onClick={() => alignV((CH - h) / 2)}>
+          <button className={btnBase} title="Center vertically" onClick={() => alignV((CH - h) / 2)}>
             <AlignCenterHorizontal size={12} />
           </button>
-          <button className={btnBase} title="Aligner en bas" onClick={() => alignV(CH - h)}>
+          <button className={btnBase} title="Align bottom" onClick={() => alignV(CH - h)}>
             <AlignEndHorizontal size={12} />
           </button>
         </div>
@@ -1587,7 +1629,7 @@ function ImageProperties({
       const { url } = await res.json()
       onChange({ source: 'asset', assetUrl: url })
     } catch {
-      alert('Erreur lors de l\'upload.')
+      alert('Upload error.')
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -1605,7 +1647,7 @@ function ImageProperties({
               element.source === 'generated' ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
             }`}
           >
-            Gemini
+            AI
           </button>
           <button
             onClick={() => onChange({ source: 'asset' })}
@@ -1613,7 +1655,7 @@ function ImageProperties({
               element.source === 'asset' ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
             }`}
           >
-            URL fixe
+            Fixed URL
           </button>
           <button
             onClick={() => onChange({ source: 'pages' })}
@@ -1628,7 +1670,7 @@ function ImageProperties({
       {element.source === 'asset' && (
         <>
           <TextField
-            label="URL de l'image"
+            label="Image URL"
             value={element.assetUrl || ''}
             onChange={(v) => onChange({ assetUrl: v })}
             placeholder="https://..."
@@ -1639,7 +1681,7 @@ function ImageProperties({
             className="w-full py-1.5 rounded-lg border border-ink-200 hover:bg-cream-100 text-[10px] text-ink-700 flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             <Upload size={11} />
-            {uploading ? 'Upload…' : 'Importer une image'}
+            {uploading ? 'Uploading…' : 'Import image'}
           </button>
           <input
             ref={fileRef}
@@ -1664,18 +1706,18 @@ function RectProperties({
   return (
     <>
       <ColorField
-        label="Remplissage"
+        label="Fill"
         value={element.fill}
         onChange={(v) => onChange({ fill: v })}
       />
       <div className="grid grid-cols-2 gap-2">
         <NumberField
-          label="Rayon coin"
+          label="Corner radius"
           value={element.cornerRadius || 0}
           onChange={(v) => onChange({ cornerRadius: Math.max(0, v) })}
         />
         <NumberField
-          label="Opacité (%)"
+          label="Opacity (%)"
           value={Math.round((element.opacity ?? 1) * 100)}
           onChange={(v) => onChange({ opacity: Math.max(0, Math.min(100, v)) / 100 })}
         />
@@ -1767,7 +1809,7 @@ function InstructionSection({
           className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-ink-200 hover:bg-cream-100 text-ink-700 flex items-center gap-1.5 disabled:opacity-50"
         >
           <Upload size={11} />
-          {uploading ? 'Lecture…' : 'Importer'}
+          {uploading ? 'Reading…' : 'Import'}
         </button>
         <input
           ref={fileRef}
@@ -1781,7 +1823,7 @@ function InstructionSection({
         className="textarea min-h-[160px] font-mono text-xs"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Vide — écrire ou importer un fichier PDF, .txt ou .md…"
+        placeholder="Empty — write or import a PDF, .txt or .md file…"
       />
     </div>
   )

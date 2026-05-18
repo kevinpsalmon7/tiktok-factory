@@ -31,9 +31,9 @@ export default async function HistoriquePage() {
           <History size={20} className="text-ink-900" />
         </div>
         <div>
-          <h1 className="font-display text-4xl font-semibold text-ink-900">Historique</h1>
+          <h1 className="font-display text-4xl font-semibold text-ink-900">History</h1>
           <p className="text-ink-600 mt-0.5 text-sm">
-            Tous vos carousels — textes uniquement.
+            All your carousels — text only.
           </p>
         </div>
       </div>

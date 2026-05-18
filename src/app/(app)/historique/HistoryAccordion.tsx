@@ -20,21 +20,21 @@ type CarouselItem = {
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 export function HistoryAccordion({ carousels }: { carousels: CarouselItem[] }) {
   const [openId, setOpenId] = useState<string | null>(null)
 
   if (carousels.length === 0) {
-    return <p className="text-sm text-ink-600/60 text-center py-12">Aucun carousel dans l&apos;historique.</p>
+    return <p className="text-sm text-ink-600/60 text-center py-12">No carousels in history.</p>
   }
 
   return (
     <div className="space-y-2">
       {carousels.map((c) => {
         const isOpen = openId === c.id
-        const label = c.title || c.carousel_type || c.prompt || 'Sans titre'
+        const label = c.title || c.carousel_type || c.prompt || 'Untitled'
 
         return (
           <div key={c.id} className="bg-white rounded-xl2 shadow-soft overflow-hidden">

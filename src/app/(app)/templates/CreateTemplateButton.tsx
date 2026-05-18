@@ -47,7 +47,7 @@ export function CreateTemplateButton({ variant = 'secondary' }: { variant?: 'pri
   return (
     <button onClick={handleCreate} disabled={loading} className={classes}>
       <Plus size={14} />
-      {loading ? 'Création...' : 'Nouveau template'}
+      {loading ? 'Creating...' : 'New template'}
     </button>
   )
 }

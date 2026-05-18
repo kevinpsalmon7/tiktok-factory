@@ -374,21 +374,34 @@ function ElementNode({
       const scaleY = node.scaleY()
       node.scaleX(1)
       node.scaleY(1)
+      let newWidth = Math.max(20, Math.round(node.width() * scaleX))
+      let newHeight = Math.max(20, Math.round(node.height() * scaleY))
+      // Enforce locked aspect ratio for image elements
+      if (element.type === 'image' && (element as ImageElement).aspectRatio) {
+        const parts = (element as ImageElement).aspectRatio!.split(':').map(Number)
+        newHeight = Math.max(20, Math.round(newWidth * parts[1] / parts[0]))
+      }
       onUpdate({
         x: Math.round(node.x()),
         y: Math.round(node.y()),
-        width: Math.max(20, Math.round(node.width() * scaleX)),
-        height: Math.max(20, Math.round(node.height() * scaleY)),
+        width: newWidth,
+        height: newHeight,
       })
     },
     onTransformEnd: (e: Konva.KonvaEventObject<Event>) => {
       const node = e.target
       // Scale is already 1 after onTransform; just persist the final position.
+      let newWidth = Math.max(20, Math.round(node.width()))
+      let newHeight = Math.max(20, Math.round(node.height()))
+      if (element.type === 'image' && (element as ImageElement).aspectRatio) {
+        const parts = (element as ImageElement).aspectRatio!.split(':').map(Number)
+        newHeight = Math.max(20, Math.round(newWidth * parts[1] / parts[0]))
+      }
       onUpdate({
         x: Math.round(node.x()),
         y: Math.round(node.y()),
-        width: Math.max(20, Math.round(node.width())),
-        height: Math.max(20, Math.round(node.height())),
+        width: newWidth,
+        height: newHeight,
       })
     },
   }

@@ -20,14 +20,14 @@ type NavItem = { href: string; label: string; icon: React.ElementType }
 const generalItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },
-  { href: '/gallery', label: 'Galerie', icon: Images },
+  { href: '/gallery', label: 'Gallery', icon: Images },
   { href: '/archives', label: 'Archives', icon: Archive },
-  { href: '/historique', label: 'Historique', icon: History },
+  { href: '/historique', label: 'History', icon: History },
   { href: '/logs', label: 'Logs', icon: ScrollText },
 ]
 
 const toolsItems: NavItem[] = [
-  { href: '/settings', label: 'Paramètres', icon: Settings },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export function Sidebar() {
@@ -48,16 +48,16 @@ export function Sidebar() {
         <div className="font-display font-bold text-2xl text-white leading-none tracking-tight">tf.</div>
       </div>
 
-      <NavSection label="Général" items={generalItems} pathname={pathname} />
+      <NavSection label="General" items={generalItems} pathname={pathname} />
 
       <div className="flex-1" />
 
-      <NavSection label="Outils" items={toolsItems} pathname={pathname} />
+      <NavSection label="Tools" items={toolsItems} pathname={pathname} />
 
       <button
         onClick={handleLogout}
         className="mx-3 mt-4 flex items-center justify-center gap-2 px-2 py-3 rounded-xl hover:bg-ink-700 transition"
-        title="Déconnexion"
+        title="Log out"
       >
         <LogOut size={18} />
       </button>

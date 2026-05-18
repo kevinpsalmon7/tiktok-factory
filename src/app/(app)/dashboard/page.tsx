@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   const displayName =
     user.user_metadata?.full_name?.split(' ')[0] ||
     user.email?.split('@')[0] ||
-    'Créateur'
+    'Creator'
 
   const [{ count: carouselsCount }, { count: templatesCount }, { data: recent }, { data: templates }] =
     await Promise.all([
@@ -48,10 +48,10 @@ export default async function DashboardPage() {
       <div className="space-y-4">
         <div>
           <h1 className="font-display text-5xl font-semibold text-ink-900 tracking-tight">
-            Bon retour, {displayName}.
+            Welcome back, {displayName}.
           </h1>
           <p className="text-ink-600 mt-2">
-            Créez votre prochain carousel en quelques secondes.
+            Create your next carousel in seconds.
           </p>
         </div>
         {templates && templates.length > 0 ? (
@@ -60,7 +60,7 @@ export default async function DashboardPage() {
           </Suspense>
         ) : (
           <div className="bg-white rounded-xl2 p-5 shadow-soft text-sm text-ink-600">
-            <Link href="/templates" className="text-ink-900 underline underline-offset-2">Créez un template</Link> pour pouvoir générer des carousels.
+            <Link href="/templates" className="text-ink-900 underline underline-offset-2">Create a template</Link> to start generating carousels.
           </div>
         )}
       </div>
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
           color="bg-pastel-pink"
-          label="Carousels générés"
+          label="Generated carousels"
           value={carouselsCount ?? 0}
           icon={<Images size={18} />}
         />
@@ -80,7 +80,7 @@ export default async function DashboardPage() {
         />
         <StatCard
           color="bg-pastel-lemon"
-          label="Crédits IA"
+          label="AI Credits"
           value="∞"
           icon={<Sparkles size={18} />}
         />
@@ -94,13 +94,13 @@ export default async function DashboardPage() {
           <div>
             <div className="chip bg-white/50 text-ink-900 mb-3">
               <Sparkles size={12} />
-              Générer
+              Generate
             </div>
             <h2 className="font-display text-3xl font-semibold text-ink-900 mb-2">
-              Nouveau carousel
+              New carousel
             </h2>
             <p className="text-ink-700 max-w-md">
-              Tapez une idée, l&apos;IA génère le texte, les visuels et compose les slides pour vous.
+              Type an idea, the AI generates the text, visuals and composes the slides for you.
             </p>
           </div>
           <ArrowRight size={24} className="text-ink-900 group-hover:translate-x-1 transition" />
@@ -116,7 +116,7 @@ export default async function DashboardPage() {
               Templates
             </div>
             <h3 className="font-display text-2xl font-semibold text-ink-900">
-              Mes templates
+              My templates
             </h3>
           </div>
           <ArrowRight size={20} className="text-ink-900 self-end" />
@@ -126,22 +126,22 @@ export default async function DashboardPage() {
       <div className="bg-white rounded-xl2 p-6 shadow-soft">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-xl font-semibold text-ink-900">
-            Derniers carousels
+            Recent carousels
           </h2>
           <Link href="/gallery" className="text-sm text-ink-600 hover:text-ink-900">
-            Voir tout →
+            View all →
           </Link>
         </div>
 
         {!recent || recent.length === 0 ? (
           <div className="text-center py-12 text-ink-600/60">
-            <p>Aucun carousel pour le moment.</p>
+            <p>No carousels yet.</p>
             <Link
               href="/generate"
               className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-ink-900 text-white rounded-full text-sm hover:bg-ink-800"
             >
               <Sparkles size={14} />
-              Générer mon premier carousel
+              Generate my first carousel
             </Link>
           </div>
         ) : (

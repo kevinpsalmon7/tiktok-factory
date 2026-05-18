@@ -241,9 +241,12 @@ export interface TextElement extends BaseElement {
 
 export interface ImageElement extends BaseElement {
   type: 'image'
-  source: 'generated' | 'asset' | 'pages' // Gemini-generated, fixed asset URL, or book page
+  source: 'generated' | 'asset' | 'pages' // AI-generated, fixed asset URL, or book page
   assetUrl?: string
   fit?: 'cover' | 'contain'
+  // Locked aspect ratio for this image (e.g. '1:1', '16:9', '9:16', '3:2', '4:3').
+  // When set, resizing via handles enforces this ratio.
+  aspectRatio?: string
 }
 
 export interface TemplatePage {
