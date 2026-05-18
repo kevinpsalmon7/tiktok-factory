@@ -1127,14 +1127,6 @@ function PropertiesPanel({
                 </button>
               )
             })}
-            {(element as ImageElement).aspectRatio && (
-              <button
-                onClick={() => onChange({ aspectRatio: undefined } as Partial<ImageElement>)}
-                className="px-2.5 py-1 rounded-full text-[10px] bg-cream-100 text-ink-500 hover:bg-red-50 hover:text-red-600 transition"
-              >
-                Free
-              </button>
-            )}
           </div>
         </div>
       ) : (
