@@ -166,6 +166,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       body: JSON.stringify({
         templateId,
         prompt: state.prompt,
+        originalPrompt: prompt,   // full original prompt for programmatic override extraction
         llm,
         runId,
         historyBlock,

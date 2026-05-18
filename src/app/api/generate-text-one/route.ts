@@ -90,6 +90,7 @@ export async function POST(request: Request) {
   const {
     templateId,
     prompt: userPrompt,
+    originalPrompt,
     llm = 'gemini' as 'gemini' | 'claude' | 'chatgpt',
     runId: incomingRunId,
     historyBlock = '',
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
   } = body as {
     templateId: string
     prompt?: string
+    originalPrompt?: string   // full original dashboard prompt — used for programmatic override extraction
     llm?: 'gemini' | 'claude' | 'chatgpt'
     runId?: string
     historyBlock?: string
@@ -238,8 +240,9 @@ export async function POST(request: Request) {
     }
 
     // Hard-enforce per-slide text overrides (e.g. "slide 2 = xxx, slide 3 = yyy").
-    // Programmatic — overrides whatever the LLM generated for those slides.
-    const slideOverrides = extractSlideOverrides(userPrompt || '')
+    // Run on the ORIGINAL full prompt — not the per-carousel reformulation —
+    // so instructions are never lost through extractIntent.
+    const slideOverrides = extractSlideOverrides(originalPrompt || userPrompt || '')
     if (slideOverrides.length > 0 && Array.isArray(carousel.slides)) {
       carousel.slides = carousel.slides.map((slide: { index: number; slide_type: string; text_fields: Record<string, string> }) => {
         const override = slideOverrides.find(o => o.slideIndex === slide.index)
