@@ -53,7 +53,23 @@ type CarouselState = {
   error?: string
   id?: string
   prompt: string
+  forcedTitle?: string   // explicit title extracted from bullet list — enforced programmatically
   abortController?: AbortController
+}
+
+/**
+ * Detect a bullet-list of explicit titles in the user's prompt.
+ * Supports "- title" and "* title" prefixes.
+ * Returns an empty array if no bullet list is found.
+ */
+function extractBulletTitles(prompt: string): string[] {
+  const lines = prompt.split('\n')
+  const bullets = lines
+    .map(l => l.trim())
+    .filter(l => l.startsWith('- ') || l.startsWith('* '))
+    .map(l => l.slice(2).trim())
+    .filter(Boolean)
+  return bullets
 }
 type Tab = 'creation' | 'processus'
 
@@ -155,6 +171,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         historyBlock,
         carouselTag: String(idx + 1),
         images: images.map(({ base64, mimeType }) => ({ base64, mimeType })),
+        forcedTitle: state.forcedTitle,
       }),
       signal: ac.signal,
     })
@@ -370,6 +387,11 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       }
       const { count, perCarousel, runId, historyBlock } = await intentRes.json()
 
+      // Extract explicit bullet-list titles from the original prompt BEFORE
+      // extractIntent mangles them. These are passed as forcedTitle so the
+      // route can enforce them programmatically regardless of LLM output.
+      const bulletTitles = extractBulletTitles(prompt)
+
       // Phase 2: load fonts (in parallel with showing the cards)
       const fontsPromise = ensureFontsLoaded(selectedTemplate.layout)
 
@@ -380,6 +402,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         status: 'queued' as CarouselStatus,
         attempts: 0,
         prompt: perCarousel[i] || prompt,
+        forcedTitle: bulletTitles[i] || undefined,
       }))
       carouselStatesRef.current = initial
       setCarouselStates([...initial])

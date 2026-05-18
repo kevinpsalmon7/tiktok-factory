@@ -95,6 +95,7 @@ export async function POST(request: Request) {
     historyBlock = '',
     carouselTag = '',
     images = [],
+    forcedTitle,
   } = body as {
     templateId: string
     prompt?: string
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
     historyBlock?: string
     carouselTag?: string
     images?: { base64: string; mimeType: string }[]
+    forcedTitle?: string
   }
 
   const runId = incomingRunId || randomUUID()
@@ -217,9 +219,9 @@ export async function POST(request: Request) {
       throw new Error('No carousel returned by LLM')
     }
 
-    // Hard-enforce an exact title if the user specified one explicitly.
-    // This is programmatic — not an LLM instruction that can be ignored.
-    const exactTitle = extractExactTitle(userPrompt || '')
+    // Hard-enforce an exact title.
+    // Priority: forcedTitle (explicit bullet from dashboard) > extractExactTitle (pattern match).
+    const exactTitle = forcedTitle?.trim() || extractExactTitle(userPrompt || '')
     if (exactTitle && Array.isArray(carousel.slides)) {
       const titleTypes = (template.layout.slideTypes || []).filter(
         (st: string) => st === 'title' || st.startsWith('title')
