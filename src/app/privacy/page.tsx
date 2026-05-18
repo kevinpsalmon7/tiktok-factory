@@ -145,11 +145,6 @@ export default function PrivacyPage() {
                 </tr>
               </tbody>
             </table>
-            <p>
-              When you use your own API keys for Anthropic, OpenAI, or Gemini, requests are made
-              directly from our server to the respective provider using your key. Your prompts and
-              content are transmitted to those providers in accordance with their terms of service.
-            </p>
           </Section>
 
           <Section title="5. Pinterest API — Specific Terms">
