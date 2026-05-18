@@ -7,6 +7,27 @@ import { createLogger } from '@/lib/logger'
 import { resolveChoices } from '@/lib/resolve-choices'
 import { randomUUID } from 'crypto'
 
+/**
+ * Detect an explicit title in the user's prompt and return it verbatim.
+ * Recognised patterns (case-insensitive):
+ *   - titre : <text>
+ *   - avec le titre <text>  /  avec ce titre <text>
+ *   - titled "<text>"  (English fallback)
+ * Returns null if no explicit title is found.
+ */
+function extractExactTitle(prompt: string): string | null {
+  const patterns = [
+    /\btitre\s*:\s*["«»]?(.+?)["«»]?\s*$/im,
+    /\btitre\s*:\s*(.+)/im,
+    /\bce titre\s*["«»]?(.+?)["«»]?\s*$/im,
+    /avec (?:le |ce )?titre\s+["«»]?(.+?)["«»]?\s*$/im,
+  ]
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern)
+    if (match?.[1]?.trim()) return match[1].trim()
+  }
+  return null
+}
 
 export const maxDuration = 300
 
@@ -164,6 +185,24 @@ export async function POST(request: Request) {
     const carousel = Array.isArray(carousels) ? carousels[0] : carousels
     if (!carousel) {
       throw new Error('No carousel returned by LLM')
+    }
+
+    // Hard-enforce an exact title if the user specified one explicitly.
+    // This is programmatic — not an LLM instruction that can be ignored.
+    const exactTitle = extractExactTitle(userPrompt || '')
+    if (exactTitle && Array.isArray(carousel.slides)) {
+      const titleTypes = (template.layout.slideTypes || []).filter(
+        (st: string) => st === 'title' || st.startsWith('title')
+      )
+      carousel.slides = carousel.slides.map((slide: { slide_type: string; text_fields: Record<string, string> }) => {
+        if (!titleTypes.includes(slide.slide_type)) return slide
+        // Replace the first text_field key that holds the title role
+        const fields = { ...slide.text_fields }
+        const titleKey = Object.keys(fields).find(k => k === 'title' || k === 'titre') ?? Object.keys(fields)[0]
+        if (titleKey) fields[titleKey] = exactTitle
+        return { ...slide, text_fields: fields }
+      })
+      await log({ step: 'text_one.exact_title', message: `exact title enforced: "${exactTitle}"`, payload: { exactTitle } })
     }
 
     await log({ step: 'text_one.done', message: `generate-text-one done tag=${carouselTag}`, payload: { tag: carouselTag } })
