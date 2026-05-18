@@ -134,14 +134,9 @@ export default function PrivacyPage() {
                   <td>Your prompts and template instructions</td>
                 </tr>
                 <tr>
-                  <td>OpenAI (GPT-4o, GPT Image)</td>
-                  <td>AI text and image generation</td>
-                  <td>Your prompts, template instructions, reference images</td>
-                </tr>
-                <tr>
-                  <td>Google Gemini</td>
-                  <td>AI text generation</td>
-                  <td>Your prompts and template instructions</td>
+                  <td>OpenAI (GPT Image)</td>
+                  <td>AI image generation</td>
+                  <td>Your image prompts and reference images</td>
                 </tr>
                 <tr>
                   <td>Pinterest API</td>
