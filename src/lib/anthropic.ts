@@ -206,7 +206,7 @@ export async function generateCarousels({
   const avatarBlock = avatarInstructions
     ? `AVATAR PROFILE:\n${avatarInstructions}\n\n`
     : ''
-  const userBlock = userPrompt ? `USER REQUEST:\n${userPrompt}\n\n` : ''
+  const userBlock = userPrompt ? `USER OVERRIDES — ABSOLUTE PRIORITY (these instructions override all template instructions below — enforce them literally and programmatically):\n${userPrompt}\n\n` : ''
   const historyBl = historyBlock ? `${historyBlock}\n\n` : ''
 
   // Build the slide-types specification block from the template layout.

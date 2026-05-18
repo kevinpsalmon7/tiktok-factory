@@ -29,6 +29,36 @@ function extractExactTitle(prompt: string): string | null {
   return null
 }
 
+type SlideOverride = {
+  slideIndex: number
+  text: string
+}
+
+/**
+ * Detect explicit per-slide content overrides in the user's prompt.
+ * Recognised patterns (case-insensitive, French + English):
+ *   - slide 2 = some text
+ *   - slide 2: some text
+ *   - slide 2 - some text
+ *   - diapo 2 = some text
+ *   - diapositive 3: some text
+ * Multiple overrides can appear on one line (comma-separated) or on separate lines.
+ */
+function extractSlideOverrides(prompt: string): SlideOverride[] {
+  const overrides: SlideOverride[] = []
+  // Match up to the next slide/diapo keyword, a comma, a newline, or end of string/line
+  const pattern = /(?:slide|diapo(?:sitive)?)\s+(\d+)\s*[=:\-]\s*(.+?)(?=,\s*(?:slide|diapo(?:sitive)?)\s+\d+|$)/gim
+  let match
+  while ((match = pattern.exec(prompt)) !== null) {
+    const slideIndex = parseInt(match[1], 10)
+    const text = match[2].trim()
+    if (slideIndex > 0 && text) {
+      overrides.push({ slideIndex, text })
+    }
+  }
+  return overrides
+}
+
 export const maxDuration = 300
 
 type ProfileRow = {
@@ -203,6 +233,25 @@ export async function POST(request: Request) {
         return { ...slide, text_fields: fields }
       })
       await log({ step: 'text_one.exact_title', message: `exact title enforced: "${exactTitle}"`, payload: { exactTitle } })
+    }
+
+    // Hard-enforce per-slide text overrides (e.g. "slide 2 = xxx, slide 3 = yyy").
+    // Programmatic — overrides whatever the LLM generated for those slides.
+    const slideOverrides = extractSlideOverrides(userPrompt || '')
+    if (slideOverrides.length > 0 && Array.isArray(carousel.slides)) {
+      carousel.slides = carousel.slides.map((slide: { index: number; slide_type: string; text_fields: Record<string, string> }) => {
+        const override = slideOverrides.find(o => o.slideIndex === slide.index)
+        if (!override) return slide
+        const fields = { ...slide.text_fields }
+        // Replace the primary text field: prefer 'text' > 'content' > first key
+        const primaryKey =
+          Object.keys(fields).find(k => k === 'text') ??
+          Object.keys(fields).find(k => k === 'content') ??
+          Object.keys(fields)[0]
+        if (primaryKey) fields[primaryKey] = override.text
+        return { ...slide, text_fields: fields }
+      })
+      await log({ step: 'text_one.slide_overrides', message: `${slideOverrides.length} slide override(s) enforced`, payload: { slideOverrides } })
     }
 
     await log({ step: 'text_one.done', message: `generate-text-one done tag=${carouselTag}`, payload: { tag: carouselTag } })
