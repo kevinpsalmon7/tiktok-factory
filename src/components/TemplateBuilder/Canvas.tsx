@@ -24,7 +24,10 @@ type Props = {
   layout: TemplateLayout
   selectedId: string | null
   onSelect: (id: string | null) => void
+  /** Committed update — creates a new undo history entry. Use for drag/transform END. */
   onUpdate: (id: string, patch: Partial<TemplateElement>) => void
+  /** Live update — overwrites the current history entry without creating a new one. Use during drag/transform. */
+  onUpdateLive: (id: string, patch: Partial<TemplateElement>) => void
   activeSlideType: string
   stageWidth: number
   stageHeight: number
@@ -39,6 +42,7 @@ export function BuilderCanvas({
   selectedId,
   onSelect,
   onUpdate,
+  onUpdateLive,
   activeSlideType,
   stageWidth,
   stageHeight,
@@ -126,6 +130,7 @@ export function BuilderCanvas({
             isSelected={el.id === selectedId}
             onSelect={() => onSelect(el.id)}
             onUpdate={(patch) => onUpdate(el.id, patch)}
+            onUpdateLive={(patch) => onUpdateLive(el.id, patch)}
             layout={layout}
             snapEnabled={snapEnabled}
             onSnapChange={setSnapLines}
@@ -319,6 +324,7 @@ function ElementNode({
   isSelected,
   onSelect,
   onUpdate,
+  onUpdateLive,
   layout,
   snapEnabled,
   onSnapChange,
@@ -327,6 +333,7 @@ function ElementNode({
   isSelected: boolean
   onSelect: () => void
   onUpdate: (patch: Partial<TemplateElement>) => void
+  onUpdateLive: (patch: Partial<TemplateElement>) => void
   layout: TemplateLayout
   snapEnabled: boolean
   onSnapChange: (lines: SnapLine[]) => void
@@ -359,11 +366,14 @@ function ElementNode({
       }
       node.x(nx)
       node.y(ny)
+      // Live update: no new history entry while dragging
+      onUpdateLive({ x: Math.round(nx), y: Math.round(ny) })
     },
     onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
       onSnapChange([])
       const x = Math.max(0, Math.min(layout.width - element.width, Math.round(e.target.x())))
       const y = Math.max(0, Math.min(layout.height - element.height, Math.round(e.target.y())))
+      // Committed update: creates one undo history entry for the whole drag
       onUpdate({ x, y })
     },
     // Reset scale every frame during transform so the element re-renders at the
@@ -381,7 +391,8 @@ function ElementNode({
         const parts = (element as ImageElement).aspectRatio!.split(':').map(Number)
         newHeight = Math.max(20, Math.round(newWidth * parts[1] / parts[0]))
       }
-      onUpdate({
+      // Live update: no new history entry while resizing
+      onUpdateLive({
         x: Math.round(node.x()),
         y: Math.round(node.y()),
         width: newWidth,
@@ -397,6 +408,7 @@ function ElementNode({
         const parts = (element as ImageElement).aspectRatio!.split(':').map(Number)
         newHeight = Math.max(20, Math.round(newWidth * parts[1] / parts[0]))
       }
+      // Committed update: creates one undo history entry for the whole resize
       onUpdate({
         x: Math.round(node.x()),
         y: Math.round(node.y()),

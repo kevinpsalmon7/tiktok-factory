@@ -149,6 +149,23 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
     [historyIndex]
   )
 
+  // Patch the CURRENT history slot in place — no new history entry, no index change.
+  // Used for live updates during drag/resize so that every pixel doesn't create
+  // a separate undo step. The final committed value is written by pushLayout.
+  const patchCurrentLayout = useCallback(
+    (next: TemplateLayout | ((prev: TemplateLayout) => TemplateLayout)) => {
+      setHistory((hist) => {
+        const base = hist[historyIndex]
+        const nextLayout = typeof next === 'function' ? next(base) : next
+        const newHist = [...hist]
+        newHist[historyIndex] = nextLayout
+        return newHist
+      })
+      // historyIndex intentionally unchanged
+    },
+    [historyIndex]
+  )
+
   const canUndo = historyIndex > 0
   const canRedo = historyIndex < history.length - 1
 
@@ -218,6 +235,17 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
 
   function updateElement(id: string, patch: Partial<TemplateElement>) {
     pushLayout((l) => ({
+      ...l,
+      elements: l.elements.map((el) =>
+        el.id === id ? ({ ...el, ...patch } as TemplateElement) : el
+      ),
+    }))
+  }
+
+  // Live update: overwrites the current history slot without creating a new entry.
+  // Used during drag/resize to avoid flooding history with per-pixel states.
+  function updateElementLive(id: string, patch: Partial<TemplateElement>) {
+    patchCurrentLayout((l) => ({
       ...l,
       elements: l.elements.map((el) =>
         el.id === id ? ({ ...el, ...patch } as TemplateElement) : el
@@ -716,6 +744,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 onUpdate={updateElement}
+                onUpdateLive={updateElementLive}
                 activeSlideType={activeSlideType}
                 stageWidth={stageSize.w}
                 stageHeight={stageSize.h}
