@@ -3,7 +3,7 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy — TikTok Factory',
-  description: 'Privacy Policy for TikTok Factory, an AI-powered carousel generation tool.',
+  description: 'Privacy Policy for TikTok Factory, an AI-powered TikTok carousel generation tool for independent content creators.',
 }
 
 const CONTACT_EMAIL = 'kevinpsalmon@gmail.com'
@@ -28,10 +28,15 @@ export default function PrivacyPage() {
 
           <Section title="1. Introduction">
             <p>
-              {APP_NAME} (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is an AI-powered tool that helps content creators
-              generate carousels for TikTok, Instagram, and other social media platforms. This Privacy
-              Policy explains how we collect, use, store, and protect your personal information when you
-              use our application.
+              {APP_NAME} (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is an AI-powered tool designed exclusively
+              for independent TikTok content creators. It enables individual creators to generate
+              carousel-format content for TikTok using AI-assisted writing and image generation.
+              {APP_NAME} is intended solely for personal, non-commercial use by independent authors
+              managing their own TikTok presence — not for agencies, brands, or automated bulk publishing.
+            </p>
+            <p>
+              This Privacy Policy explains how we collect, use, store, and protect your personal
+              information when you use our application.
             </p>
             <p>
               By accessing or using {APP_NAME}, you agree to the practices described in this policy.
@@ -243,11 +248,17 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="10. Children's Privacy">
+          <Section title="10. Eligibility and Age Restriction">
             <p>
-              {APP_NAME} is not directed at children under 13 years of age. We do not knowingly
-              collect personal information from children. If you believe a child has provided us with
-              personal information, please contact us and we will delete it promptly.
+              {APP_NAME} is intended exclusively for independent TikTok content creators who are
+              at least 18 years of age (or the age of majority in their jurisdiction). The service
+              is not directed at minors. We do not knowingly collect personal information from anyone
+              under 18. If you believe a minor has registered an account, please contact us and we
+              will delete it promptly.
+            </p>
+            <p>
+              By using {APP_NAME}, you confirm that you are an independent individual creator and
+              not acting on behalf of an agency, corporation, or automated content operation.
             </p>
           </Section>
 
