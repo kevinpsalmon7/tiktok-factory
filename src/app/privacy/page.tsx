@@ -70,10 +70,10 @@ export default function PrivacyPage() {
             </SubSection>
             <SubSection title="2.4 Payment Data">
               <p>
-                When you subscribe to {APP_NAME}, payment is processed by a third-party payment
-                provider (such as Stripe). We do not collect or store your credit card number, bank
-                details, or any other sensitive financial information. We only receive a confirmation
-                of payment status and a subscription identifier from the payment provider.
+                When you subscribe to {APP_NAME}, payment is processed by Stripe. We do not
+                collect or store your credit card number, bank details, or any other sensitive
+                financial information. We only receive a confirmation of payment status and a
+                subscription identifier from Stripe.
               </p>
             </SubSection>
             <SubSection title="2.5 Pinterest Data">
@@ -152,7 +152,7 @@ export default function PrivacyPage() {
                   <td>Search queries you enter; your Pinterest access token</td>
                 </tr>
                 <tr>
-                  <td>Stripe (or equivalent)</td>
+                  <td>Stripe</td>
                   <td>Subscription payment processing</td>
                   <td>Email address, subscription status — no card data stored by us</td>
                 </tr>
