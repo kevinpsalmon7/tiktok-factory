@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 }
 
 const CONTACT_EMAIL = 'kevinpsalmon@gmail.com'
-const EFFECTIVE_DATE = 'May 18, 2025'
+const EFFECTIVE_DATE = 'May 19, 2025'
 const APP_NAME = 'TikTok Factory'
 
 export default function PrivacyPage() {
@@ -92,11 +92,35 @@ export default function PrivacyPage() {
                 analytics, or any purpose other than the immediate display and selection within the app.
               </p>
             </SubSection>
-            <SubSection title="2.6 Usage Logs">
+            <SubSection title="2.6 Threads Data">
+              <p>
+                If you connect a Threads account to {APP_NAME}, we collect and store:
+              </p>
+              <ul>
+                <li>Your Threads user ID and username, to identify your account</li>
+                <li>A long-lived OAuth access token, to publish posts on your behalf</li>
+                <li>Post content (text and optional images) that you create or generate within the app, stored in a queue until published</li>
+                <li>Images you upload to your {APP_NAME} image library for use in Threads posts</li>
+              </ul>
+              <p>
+                Threads data is used exclusively to schedule and publish posts to your connected
+                Threads account(s). We do not use your Threads data for advertising, analytics, or
+                any purpose other than the posting features you explicitly initiate. We connect to
+                the Threads API in compliance with the{' '}
+                <a href="https://developers.facebook.com/terms/" target="_blank" rel="noopener noreferrer">
+                  Meta Platform Terms
+                </a>{' '}
+                and the{' '}
+                <a href="https://developers.facebook.com/devpolicy/" target="_blank" rel="noopener noreferrer">
+                  Meta Developer Policies
+                </a>.
+              </p>
+            </SubSection>
+            <SubSection title="2.7 Usage Logs">
               <p>
                 We collect technical logs of generation requests (prompts sent, LLM responses, errors)
                 for debugging purposes. These logs are associated with your user account and are
-                retained for a limited period (see Section 7).
+                retained for a limited period (see Section 8).
               </p>
             </SubSection>
           </Section>
@@ -108,6 +132,7 @@ export default function PrivacyPage() {
               <li>To generate carousel content using AI providers based on your instructions</li>
               <li>To save and retrieve your templates and generated carousels</li>
               <li>To perform image searches on Pinterest on your behalf when you initiate a search</li>
+              <li>To schedule and publish posts to your connected Threads account(s) on your behalf</li>
               <li>To diagnose and fix technical errors in the service</li>
               <li>To improve the quality and reliability of the service</li>
             </ul>
@@ -150,6 +175,11 @@ export default function PrivacyPage() {
                   <td>Pinterest API</td>
                   <td>Image search and retrieval</td>
                   <td>Search queries you enter; your Pinterest access token</td>
+                </tr>
+                <tr>
+                  <td>Meta Threads API</td>
+                  <td>Scheduling and publishing Threads posts</td>
+                  <td>Your Threads username, access token, post content and images</td>
                 </tr>
                 <tr>
                   <td>Stripe</td>
@@ -197,13 +227,58 @@ export default function PrivacyPage() {
             </SubSection>
           </Section>
 
-          <Section title="6. Data Retention">
+          <Section title="6. Threads API — Specific Terms">
+            <p>
+              {APP_NAME} uses the Threads API (Meta) in compliance with the{' '}
+              <a href="https://developers.facebook.com/terms/" target="_blank" rel="noopener noreferrer">
+                Meta Platform Terms
+              </a>{' '}
+              and the{' '}
+              <a href="https://developers.facebook.com/devpolicy/" target="_blank" rel="noopener noreferrer">
+                Meta Developer Policies
+              </a>.
+            </p>
+            <SubSection title="What we access">
+              <ul>
+                <li>Your Threads user ID and public username, to identify your connected account</li>
+                <li>A long-lived OAuth access token (valid 60 days, auto-renewable), stored securely to publish on your behalf</li>
+              </ul>
+            </SubSection>
+            <SubSection title="What we do">
+              <ul>
+                <li>We publish text posts and image posts to your Threads account, strictly at your request or on a schedule you define</li>
+                <li>We store post content and images in a queue until they are published or deleted by you</li>
+                <li>We delete your Threads token and all associated data when you disconnect the account or delete your {APP_NAME} account</li>
+              </ul>
+            </SubSection>
+            <SubSection title="What we do NOT do">
+              <ul>
+                <li>We do not read, store, or analyse your existing Threads posts or followers</li>
+                <li>We do not use your Threads data for advertising, profiling, or any purpose beyond publishing</li>
+                <li>We do not share your Threads credentials or post content with any third party</li>
+                <li>We do not publish anything to Threads without your explicit action or a schedule you configured</li>
+              </ul>
+            </SubSection>
+            <SubSection title="Revoking Threads access">
+              <p>
+                You can disconnect your Threads account at any time from the Threads tab in {APP_NAME}.
+                You can also revoke access directly from your{' '}
+                <a href="https://www.threads.net/settings/connected-apps" target="_blank" rel="noopener noreferrer">
+                  Threads connected apps settings
+                </a>. Upon revocation, your access token and all queued posts are deleted from our
+                database within 24 hours.
+              </p>
+            </SubSection>
+          </Section>
+
+          <Section title="8. Data Retention">
             <ul>
               <li><strong>Account data:</strong> retained for as long as your account is active</li>
               <li><strong>Templates and generated carousels:</strong> retained until you delete them or close your account</li>
               <li><strong>Generation logs:</strong> retained for 90 days, then automatically purged</li>
               <li><strong>Pinterest tokens:</strong> retained until you revoke access or delete your account; deleted within 24 hours of revocation</li>
               <li><strong>Pinterest search results:</strong> not persisted beyond your browser session</li>
+              <li><strong>Threads tokens and queued posts:</strong> retained until you disconnect the account or delete your {APP_NAME} account; deleted within 24 hours of revocation</li>
               <li><strong>API keys:</strong> retained until you clear them from settings or delete your account</li>
             </ul>
             <p>
@@ -212,7 +287,7 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="7. Data Security">
+          <Section title="9. Data Security">
             <p>
               We take reasonable technical measures to protect your data:
             </p>
@@ -228,7 +303,7 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="8. Your Rights">
+          <Section title="10. Your Rights">
             <p>Depending on your jurisdiction, you may have the right to:</p>
             <ul>
               <li><strong>Access</strong> the personal data we hold about you</li>
@@ -243,7 +318,7 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="9. Cookies">
+          <Section title="11. Cookies">
             <p>
               {APP_NAME} uses only strictly necessary cookies for session authentication (managed by
               Supabase Auth). We do not use advertising cookies, tracking pixels, or third-party
@@ -251,7 +326,7 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="10. Eligibility and Age Restriction">
+          <Section title="12. Eligibility and Age Restriction">
             <p>
               {APP_NAME} is intended for independent TikTok content creators who are at least
               18 years of age (or the age of majority in their jurisdiction). The service is not
@@ -266,7 +341,7 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="11. Changes to This Policy">
+          <Section title="13. Changes to This Policy">
             <p>
               We may update this Privacy Policy from time to time. When we do, we will update the
               &quot;Last updated&quot; date at the top of this page. Continued use of the service after
@@ -274,7 +349,7 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="12. Contact">
+          <Section title="14. Contact">
             <p>
               For any questions, requests, or concerns regarding this Privacy Policy, please contact:
             </p>
