@@ -11,6 +11,7 @@ import {
   History,
   ScrollText,
   Archive,
+  MessageCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -23,6 +24,7 @@ const generalItems: NavItem[] = [
   { href: '/gallery', label: 'Gallery', icon: Images },
   { href: '/archives', label: 'Archives', icon: Archive },
   { href: '/historique', label: 'History', icon: History },
+  { href: '/threads', label: 'Threads', icon: MessageCircle },
   { href: '/logs', label: 'Logs', icon: ScrollText },
 ]
 
