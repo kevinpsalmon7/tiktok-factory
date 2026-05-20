@@ -189,6 +189,10 @@ export type TextParagraph = {
   highlightColor?: string
   /** Optional drop-shadow behind the rendered text. */
   shadow?: TextShadow
+  /** Optional text stroke (outline). Color string e.g. '#ffffff' */
+  strokeColor?: string
+  /** Stroke width in canvas pixels (only applied when strokeColor is set). */
+  strokeWidth?: number
   /**
    * When set (> 0), this paragraph is a pure vertical spacer — no text is
    * rendered. The value is the height in canvas pixels.

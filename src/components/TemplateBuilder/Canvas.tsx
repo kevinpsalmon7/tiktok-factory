@@ -432,6 +432,8 @@ type ResolvedParagraph =
       color: string; align: 'left' | 'center' | 'right'; lineHeight: number
       highlight: boolean; highlightColor: string
       shadow?: TextShadow
+      strokeColor?: string
+      strokeWidth?: number
     }
   | {
       isSeparator: false
@@ -440,6 +442,8 @@ type ResolvedParagraph =
       color: string; align: 'left' | 'center' | 'right'; lineHeight: number
       highlight: boolean; highlightColor: string
       shadow?: TextShadow
+      strokeColor?: string
+      strokeWidth?: number
     }
 
 // Resolve element.paragraphs (rich) or fall back to a single legacy paragraph.
@@ -479,6 +483,8 @@ function resolveParagraphs(element: TextElement): ResolvedParagraph[] {
       highlight: p.highlight ?? false,
       highlightColor: p.highlightColor ?? '#FFE500',
       shadow: p.shadow,
+      strokeColor: p.strokeColor,
+      strokeWidth: p.strokeWidth,
     }
   })
 }
@@ -631,6 +637,12 @@ function TextNode({
               shadowOffsetX: p.shadow.offsetX,
               shadowOffsetY: p.shadow.offsetY,
               shadowOpacity: p.shadow.opacity,
+            } : {})}
+            {...(p.strokeColor ? {
+              stroke: p.strokeColor,
+              strokeWidth: p.strokeWidth ?? 2,
+              strokeEnabled: true,
+              fillAfterStrokeEnabled: true,
             } : {})}
           />
           </>}

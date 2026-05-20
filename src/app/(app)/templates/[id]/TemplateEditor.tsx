@@ -1562,6 +1562,36 @@ function TextProperties({
             </>
           )}
         </div>
+        <div className="border border-cream-200 rounded-lg p-2 space-y-1.5">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!sel.strokeColor}
+              onChange={(e) =>
+                updatePara({
+                  strokeColor: e.target.checked ? (sel.strokeColor ?? '#ffffff') : undefined,
+                  strokeWidth: e.target.checked ? (sel.strokeWidth ?? 2) : undefined,
+                })
+              }
+              className="w-3 h-3 accent-ink-900"
+            />
+            <span className="text-[10px] text-ink-700 font-medium">Bordure</span>
+          </label>
+          {sel.strokeColor && (
+            <div className="grid grid-cols-2 gap-2">
+              <ColorField
+                label="Couleur"
+                value={sel.strokeColor}
+                onChange={(v) => updatePara({ strokeColor: v })}
+              />
+              <NumberField
+                label="Épaisseur"
+                value={sel.strokeWidth ?? 2}
+                onChange={(v) => updatePara({ strokeWidth: Math.max(0.5, v) })}
+              />
+            </div>
+          )}
+        </div>
         <div>
           <label className="block text-[10px] text-ink-600 mb-0.5">Police</label>
           <FontPicker
