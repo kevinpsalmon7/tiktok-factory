@@ -1727,6 +1727,14 @@ function ImageProperties({
           >
             Pages
           </button>
+          <button
+            onClick={() => onChange({ source: 'backgrounds' })}
+            className={`flex-1 py-1.5 rounded-lg text-[10px] ${
+              element.source === 'backgrounds' ? 'bg-ink-900 text-white' : 'bg-cream-100 text-ink-700'
+            }`}
+          >
+            Backgrounds
+          </button>
         </div>
       </div>
       {element.source === 'asset' && (

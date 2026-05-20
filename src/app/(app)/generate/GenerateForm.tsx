@@ -221,6 +221,15 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         .map((el: any) => el.slideType as string)
     )
 
+    // Detect slide types that use 'backgrounds' source
+    const backgroundsImageSlideTypes = new Set(
+      (selectedTemplate.layout.elements ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((el: any) => el.type === 'image' && el.source === 'backgrounds')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((el: any) => el.slideType as string)
+    )
+
     async function fetchImg(imgPrompt: string, slideIndex: number, slideType: string): Promise<string> {
       if (!imgPrompt) return ''
       const res = await fetch('/api/generate-image', {
@@ -298,11 +307,34 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       }
     }
 
+    // Resolve 'backgrounds' source slides: pick a random background from the library
+    let backgroundUrl: string | null = null
+    if (backgroundsImageSlideTypes.size > 0) {
+      try {
+        const bgRes = await fetch(`/api/backgrounds?templateId=${encodeURIComponent(templateId)}`, {
+          signal: ac.signal,
+        })
+        if (bgRes.ok) {
+          const bgData = await bgRes.json()
+          const list: { storage_path: string }[] = bgData.backgrounds || []
+          if (list.length > 0) {
+            const pick = list[Math.floor(Math.random() * list.length)]
+            const projectRef = 'qwxqiksnuykmdpnxghok'
+            backgroundUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/template-backgrounds/${pick.storage_path}`
+          }
+        }
+      } catch {
+        // Non-fatal
+      }
+    }
+
     const updatedSlides: CarouselSlide[] = slides.map(s => ({
       ...s,
       background_url: pagesImageSlideTypes.has(s.slide_type)
         ? (pageUrl ?? undefined)
-        : (imageByType[s.slide_type] ?? undefined),
+        : backgroundsImageSlideTypes.has(s.slide_type)
+          ? (backgroundUrl ?? undefined)
+          : (imageByType[s.slide_type] ?? undefined),
     }))
 
     // 4. Render + upload slides

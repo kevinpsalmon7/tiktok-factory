@@ -245,7 +245,7 @@ export interface TextElement extends BaseElement {
 
 export interface ImageElement extends BaseElement {
   type: 'image'
-  source: 'generated' | 'asset' | 'pages' // AI-generated, fixed asset URL, or book page
+  source: 'generated' | 'asset' | 'pages' | 'backgrounds' // AI-generated, fixed asset URL, book page, or template background
   assetUrl?: string
   fit?: 'cover' | 'contain'
   // Locked aspect ratio for this image (e.g. '1:1', '16:9', '9:16', '3:2', '4:3').
