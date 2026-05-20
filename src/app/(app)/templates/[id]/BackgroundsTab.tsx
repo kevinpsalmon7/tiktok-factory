@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { compressImage } from '@/lib/compressImage'
+import { compressImage, pLimit } from '@/lib/compressImage'
 
 type Background = {
   id: string
@@ -65,52 +65,55 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
     setUploadProgress({ done: 0, total: fileArr.length })
     const supabase = createClient()
 
-    for (const file of fileArr) {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        setError(`Type non supporté : ${file.name}`)
+    await pLimit(
+      fileArr.map((file) => async () => {
+        if (!ACCEPTED_TYPES.includes(file.type)) {
+          setError(`Type non supporté : ${file.name}`)
+          setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
+          return
+        }
+        if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+          setError(`Fichier trop grand : ${file.name} (>${MAX_SIZE_MB}MB)`)
+          setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
+          return
+        }
+
+        // Compress to WebP before upload (falls back to original if smaller)
+        const compressed = await compressImage(file)
+
+        const ext = compressed.type === 'image/webp' ? 'webp' : (file.name.split('.').pop()?.toLowerCase() || 'jpg')
+        const uuid = crypto.randomUUID()
+        const storagePath = `${userId}/${templateId}/${uuid}.${ext}`
+
+        const { error: uploadErr } = await supabase.storage
+          .from('template-backgrounds')
+          .upload(storagePath, compressed, { contentType: compressed.type, upsert: false })
+
+        if (uploadErr) {
+          setError(`Erreur upload : ${uploadErr.message}`)
+          setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
+          return
+        }
+
+        const res = await fetch('/api/backgrounds', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            templateId,
+            storagePath,
+            name: file.name.replace(/\.[^.]+$/, ''),
+          }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+          setError(body.error || "Erreur lors de l'enregistrement")
+          await supabase.storage.from('template-backgrounds').remove([storagePath])
+        }
+
         setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
-        continue
-      }
-      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-        setError(`Fichier trop grand : ${file.name} (>${MAX_SIZE_MB}MB)`)
-        setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
-        continue
-      }
-
-      // Compress to WebP before upload (falls back to original if smaller)
-      const compressed = await compressImage(file)
-
-      const ext = compressed.type === 'image/webp' ? 'webp' : (file.name.split('.').pop()?.toLowerCase() || 'jpg')
-      const uuid = crypto.randomUUID()
-      const storagePath = `${userId}/${templateId}/${uuid}.${ext}`
-
-      const { error: uploadErr } = await supabase.storage
-        .from('template-backgrounds')
-        .upload(storagePath, compressed, { contentType: compressed.type, upsert: false })
-
-      if (uploadErr) {
-        setError(`Erreur upload : ${uploadErr.message}`)
-        setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
-        continue
-      }
-
-      const res = await fetch('/api/backgrounds', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateId,
-          storagePath,
-          name: file.name.replace(/\.[^.]+$/, ''),
-        }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-        setError(body.error || "Erreur lors de l'enregistrement")
-        await supabase.storage.from('template-backgrounds').remove([storagePath])
-      }
-
-      setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
-    }
+      }),
+      4, // max 4 simultaneous uploads
+    )
 
     setUploading(false)
     setUploadProgress(null)

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star, Sparkles, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { compressImage } from '@/lib/compressImage'
+import { compressImage, pLimit } from '@/lib/compressImage'
 import type { TemplatePage } from '@/types/database'
 
 type PagesTabProps = {
@@ -55,48 +55,56 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
     setUploadProgress({ done: 0, total: fileArr.length })
     const supabase = createClient()
 
-    for (const file of fileArr) {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        setError(`Type non supporté : ${file.name}`)
-        continue
-      }
-      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-        setError(`Fichier trop grand : ${file.name} (>${MAX_SIZE_MB}MB)`)
-        continue
-      }
+    // Pages call Claude to generate summaries — limit to 3 concurrent to avoid
+    // hammering the Anthropic API and the browser's memory at the same time
+    await pLimit(
+      fileArr.map((file) => async () => {
+        if (!ACCEPTED_TYPES.includes(file.type)) {
+          setError(`Type non supporté : ${file.name}`)
+          setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
+          return
+        }
+        if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+          setError(`Fichier trop grand : ${file.name} (>${MAX_SIZE_MB}MB)`)
+          setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
+          return
+        }
 
-      // Compress to WebP before upload (falls back to original if smaller)
-      const compressed = await compressImage(file)
+        // Compress to WebP before upload (falls back to original if smaller)
+        const compressed = await compressImage(file)
 
-      // 1. Upload directly to Supabase Storage from the browser (no server body size limit)
-      const ext = compressed.type === 'image/webp' ? 'webp' : (file.name.split('.').pop()?.toLowerCase() || 'jpg')
-      const uuid = crypto.randomUUID()
-      const storagePath = `${userId}/${templateId}/${uuid}.${ext}`
+        // 1. Upload directly to Supabase Storage from the browser (no server body size limit)
+        const ext = compressed.type === 'image/webp' ? 'webp' : (file.name.split('.').pop()?.toLowerCase() || 'jpg')
+        const uuid = crypto.randomUUID()
+        const storagePath = `${userId}/${templateId}/${uuid}.${ext}`
 
-      const { error: uploadErr } = await supabase.storage
-        .from('template-pages')
-        .upload(storagePath, compressed, { contentType: compressed.type, upsert: false })
+        const { error: uploadErr } = await supabase.storage
+          .from('template-pages')
+          .upload(storagePath, compressed, { contentType: compressed.type, upsert: false })
 
-      if (uploadErr) {
-        setError(`Erreur upload : ${uploadErr.message}`)
-        continue
-      }
+        if (uploadErr) {
+          setError(`Erreur upload : ${uploadErr.message}`)
+          setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
+          return
+        }
 
-      // 2. Call API with just the storage path — no image payload
-      const res = await fetch('/api/pages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, storagePath, mimeType: file.type }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-        setError(body.error || "Erreur lors de l'analyse")
-        // Clean up orphaned storage file
-        await supabase.storage.from('template-pages').remove([storagePath])
-      }
+        // 2. Call API with just the storage path — no image payload
+        const res = await fetch('/api/pages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ templateId, storagePath, mimeType: compressed.type }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+          setError(body.error || "Erreur lors de l'analyse")
+          // Clean up orphaned storage file
+          await supabase.storage.from('template-pages').remove([storagePath])
+        }
 
-      setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
-    }
+        setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
+      }),
+      3, // max 3 concurrent — each triggers a Claude API call server-side
+    )
 
     setUploading(false)
     setUploadProgress(null)

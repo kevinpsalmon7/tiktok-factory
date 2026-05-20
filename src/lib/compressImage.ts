@@ -1,4 +1,28 @@
 /**
+ * Runs async tasks with a concurrency limit.
+ * @param tasks    Array of zero-arg async functions to run
+ * @param limit    Max number of tasks running in parallel (default 4)
+ */
+export async function pLimit<T>(
+  tasks: (() => Promise<T>)[],
+  limit = 4,
+): Promise<T[]> {
+  const results: T[] = new Array(tasks.length)
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < tasks.length) {
+      const i = nextIndex++
+      results[i] = await tasks[i]()
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => worker())
+  await Promise.all(workers)
+  return results
+}
+
+/**
  * Compresses an image file in the browser using the Canvas API.
  * Converts to WebP at the given quality (0–1). Falls back to the original
  * file if WebP is not supported or if compression yields a larger file.
