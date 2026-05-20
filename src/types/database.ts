@@ -294,6 +294,14 @@ export interface TemplateLayout {
   // Min/max number of "content" slides to generate (enforced in the LLM prompt).
   // Defaults to { min: 5, max: 8 } when not set.
   contentSlideRange?: { min: number; max: number }
+  /**
+   * How images from the Backgrounds library are distributed across slides when
+   * an image element uses source='backgrounds':
+   * - 'all'           → one random image used on every slide (default)
+   * - 'each'          → a different random image per individual slide
+   * - 'title-content' → one image for title slides, another for content slides
+   */
+  backgroundsMode?: 'all' | 'each' | 'title-content'
 }
 
 // ── Carousel slide types ──────────────────────────────────────────────────

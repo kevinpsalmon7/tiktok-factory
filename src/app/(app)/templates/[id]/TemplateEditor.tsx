@@ -844,6 +844,8 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
           <BackgroundsTab
             templateId={initialTemplate.id}
             userId={userId}
+            mode={layout.backgroundsMode ?? 'all'}
+            onModeChange={(mode) => pushLayout((l) => ({ ...l, backgroundsMode: mode }))}
           />
         </div>
       )}

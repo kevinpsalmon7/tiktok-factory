@@ -150,6 +150,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     selectedTemplate: Template,
     userId: string,
     supabase: ReturnType<typeof createClient>,
+    freezeSeed: string | undefined,
   ): Promise<string> {
     const state = carouselStatesRef.current.find(c => c.idx === idx)!
     const ac = new AbortController()
@@ -173,6 +174,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         carouselTag: String(idx + 1),
         images: images.map(({ base64, mimeType }) => ({ base64, mimeType })),
         forcedTitle: state.forcedTitle,
+        freezeSeed,
       }),
       signal: ac.signal,
     })
@@ -307,8 +309,15 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       }
     }
 
-    // Resolve 'backgrounds' source slides: pick a random background from the library
-    let backgroundUrl: string | null = null
+    // Resolve 'backgrounds' source slides. Distribution depends on the template's
+    // backgroundsMode setting (configured in the Backgrounds tab):
+    //   - 'all'           → one random image used on every slide
+    //   - 'each'          → a different random image per individual slide index
+    //   - 'title-content' → one image for title slides, another for content slides
+    // `backgroundByIndex` (slide.index → URL) takes precedence over
+    // `backgroundByType` when set, so the 'each' mode can target specific slides.
+    const backgroundByType: Record<string, string> = {}
+    const backgroundByIndex: Record<number, string> = {}
     if (backgroundsImageSlideTypes.size > 0) {
       try {
         const bgRes = await fetch(`/api/backgrounds?templateId=${encodeURIComponent(templateId)}`, {
@@ -318,9 +327,44 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
           const bgData = await bgRes.json()
           const list: { storage_path: string }[] = bgData.backgrounds || []
           if (list.length > 0) {
-            const pick = list[Math.floor(Math.random() * list.length)]
             const projectRef = 'qwxqiksnuykmdpnxghok'
-            backgroundUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/template-backgrounds/${pick.storage_path}`
+            const toUrl = (p: { storage_path: string }) =>
+              `https://${projectRef}.supabase.co/storage/v1/object/public/template-backgrounds/${p.storage_path}`
+
+            const mode = selectedTemplate.layout.backgroundsMode ?? 'all'
+
+            // Fisher-Yates shuffle of the library (used by 'each' and 'title-content'
+            // to pick distinct images without replacement)
+            const shuffled = [...list]
+            for (let i = shuffled.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1))
+              ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+            }
+
+            if (mode === 'all') {
+              const pick = list[Math.floor(Math.random() * list.length)]
+              for (const st of backgroundsImageSlideTypes) backgroundByType[st] = toUrl(pick)
+            } else if (mode === 'each') {
+              // Assign a distinct image per slide (in slide order). If the
+              // library is smaller than the slide count, recycle through the
+              // shuffled list.
+              const targetSlides = slides.filter(s => backgroundsImageSlideTypes.has(s.slide_type))
+              targetSlides.forEach((s, i) => {
+                backgroundByIndex[s.index] = toUrl(shuffled[i % shuffled.length])
+              })
+            } else {
+              // 'title-content'
+              const titleBgTypes = [...backgroundsImageSlideTypes].filter(
+                (st) => st === 'title' || st.startsWith('title')
+              )
+              const contentBgTypes = [...backgroundsImageSlideTypes].filter(
+                (st) => !(st === 'title' || st.startsWith('title'))
+              )
+              const titlePick = shuffled[0]
+              const contentPick = shuffled[1] ?? shuffled[0]
+              for (const st of titleBgTypes) backgroundByType[st] = toUrl(titlePick)
+              for (const st of contentBgTypes) backgroundByType[st] = toUrl(contentPick)
+            }
           }
         }
       } catch {
@@ -333,7 +377,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       background_url: pagesImageSlideTypes.has(s.slide_type)
         ? (pageUrl ?? undefined)
         : backgroundsImageSlideTypes.has(s.slide_type)
-          ? (backgroundUrl ?? undefined)
+          ? (backgroundByIndex[s.index] ?? backgroundByType[s.slide_type] ?? undefined)
           : (imageByType[s.slide_type] ?? undefined),
     }))
 
@@ -420,6 +464,12 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       }
       const { count, perCarousel, runId, historyBlock } = await intentRes.json()
 
+      // Anthropic prompt cache: only worth activating for batches of 4+.
+      // The same seed is reused for all N calls AND across retry rounds so the
+      // cached system prompt remains identical and hits the 5-min TTL.
+      const freezeSeed: string | undefined =
+        count >= 4 && llm === 'claude' ? crypto.randomUUID() : undefined
+
       // Extract explicit bullet-list titles from the original prompt BEFORE
       // extractIntent mangles them. These are passed as forcedTitle so the
       // route can enforce them programmatically regardless of LLM output.
@@ -448,7 +498,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         const round = toProcess
         const results = await Promise.allSettled(
           round.map(idx =>
-            processOneCarousel(idx, runId, historyBlock, selectedTemplate, user!.id, supabase)
+            processOneCarousel(idx, runId, historyBlock, selectedTemplate, user!.id, supabase, freezeSeed)
               .catch(err => {
                 // Tag the rejection with idx so we know which carousel failed
                 const wrapped = err instanceof Error ? err : new Error(String(err))

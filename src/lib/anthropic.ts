@@ -88,12 +88,12 @@ export async function extractIntent(prompt: string, apiKey: string, log?: Logger
   const client = new Anthropic({ apiKey })
   const userContent = `You parse carousel generation requests. Read the user's message and:\n1. Extract the EXACT number of carousels stated (default 1 if not stated)\n2. Write a specific, UNIQUE instruction for EACH carousel — no two can overlap in topic or angle\n   - Honor any explicit topic the user mentioned for specific carousels\n   - For unspecified carousels, invent complementary angles from the same context\n   - Keep instructions in the user's language\n\nReturn ONLY valid JSON: {"count": N, "carousels": ["instruction 1", "instruction 2", ...]}\nThe "carousels" array must have EXACTLY N distinct strings.\n\nExamples:\n- "3 carousels dont un sur la famille et un sur le couple" → {"count":3,"carousels":["TDAH et dynamiques familiales","TDAH et vie de couple / mariage","TDAH et gestion des émotions au quotidien"]}\n- "génère 2 carousels sur le burnout" → {"count":2,"carousels":["Reconnaître les signes du burnout","Se reconstruire après un burnout"]}\n\nUser request: "${prompt.replace(/"/g, "'")}"`
 
-  await log?.({ step: 'claude.intent.request', message: 'extractIntent: sending prompt to Claude', payload: { model: 'claude-sonnet-4-5', userPrompt: prompt, fullClaudePrompt: userContent } })
+  await log?.({ step: 'claude.intent.request', message: 'extractIntent: sending prompt to Claude', payload: { model: 'claude-haiku-4-5', userPrompt: prompt, fullClaudePrompt: userContent } })
 
   const res = await withRetry(
     () =>
       client.messages.create({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-haiku-4-5',
         max_tokens: 512,
         messages: [{ role: 'user', content: userContent }],
       }),
@@ -145,6 +145,11 @@ type GenerateArgs = {
   carouselTag?: string
   // Min/max number of "content" slides the LLM must generate
   contentSlideRange?: { min: number; max: number }
+  // When true, enable Anthropic prompt caching on the system block.
+  // Only meaningful when the same system block is sent ≥2 times within 5 min.
+  // The route is responsible for ensuring the system block is byte-identical
+  // across calls (i.e. resolveChoices must be frozen via seed).
+  useCache?: boolean
 }
 
 /**
@@ -187,13 +192,14 @@ export async function generateCarousels({
   userPrompt = '',
   historyBlock = '',
   count = 1,
-  model = 'claude-sonnet-4-5',
+  model = 'claude-haiku-4-5',
   rolesByType,
   highlightRoles = {},
   images = [],
   log,
   carouselTag = '',
   contentSlideRange,
+  useCache = false,
 }: GenerateArgs) {
   const client = new Anthropic({ apiKey })
 
@@ -227,11 +233,20 @@ export async function generateCarousels({
     : '  - "title", "content", "cta" → text_fields keys: title, text, cta'
 
   const slideStructurePart = slideStructureBlock ? `\n\n${slideStructureBlock}` : ''
-  const prompt = `${masterBlock}${absoluteRulesBlock}${avatarBlock}${historyBl}${userBlock}You generate content for TikTok/Instagram carousels.\n\nWRITING RULES — ZERO TOLERANCE:\n- FORBIDDEN: em dash "—". Replace with period or line break.\n- FORBIDDEN: "---" as separator.\n- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).\n- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants. Never use this oppositional two-sentence structure.\n- NUMBER CONSISTENCY: If the title text contains a specific count (e.g. "4 choses", "7 signes"), the number of content slides MUST exactly equal that number — it overrides the range in the slide structure below.\n\nGenerate exactly ${count} carousel(s). Each must follow the style and structure below.${slideStructurePart}\n\n--- STYLE GUIDE ---\n${styleGuide}\n\n--- CAROUSEL INSTRUCTIONS ---\n${carouselInstructions}\n\n--- AVAILABLE SLIDE TYPES ---\nFor each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.\n${slideTypesSpec}\n\nHIGHLIGHT RULES — MANDATORY, NO EXCEPTIONS:\n- For every text role marked [HIGHLIGHT ENABLED], you MUST include ==...== markers in the text.\n- Every such field MUST contain at least one ==highlighted passage==.\n- If a field is marked [HIGHLIGHT ENABLED] and you produce text without any ==...== markers, the output is INVALID.\n- Choose the 1 to 3 most emotionally resonant words or short phrases and wrap them: ==like this==.\n\nAllowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.\n\nReturn ONLY a valid JSON array with exactly ${count} object(s). No markdown, no explanation, no code block — raw JSON only.\n\nEach carousel object must have:\n{\n  "carousel_type": "<brief description>",\n  "image_prompt_title": "<Illustration prompt for the TITLE slide. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",\n  "image_prompt_content": "<Illustration prompt for the CONTENT slides. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",\n  "slides": [\n    {\n      "index": 1,\n      "slide_type": "<one of the allowed values above>",\n      "text_fields": { "<role>": "<copy>", ... }\n    },\n    ...\n  ]\n}\n\nIMPORTANT:\n- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.\n- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty.\n- image_prompt_title and image_prompt_content: follow ONLY the framing, composition, and background rules defined in the template's carousel instructions. Do NOT add hardcoded defaults. Max 20 words each.\n- There is NO illustration_prompt on individual slides.\n- All text in "text_fields" is what will be rendered on the slide.\n`
+
+  // ── SYSTEM prompt (cacheable when useCache=true) ──────────────────────
+  // Contains ONLY static, batch-invariant content: template instructions,
+  // writing rules, schema. No userPrompt, no historyBlock, no count.
+  const systemPrompt = `${masterBlock}${absoluteRulesBlock}${avatarBlock}You generate content for TikTok/Instagram carousels.\n\nWRITING RULES — ZERO TOLERANCE:\n- FORBIDDEN: em dash "—". Replace with period or line break.\n- FORBIDDEN: "---" as separator.\n- FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).\n- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants. Never use this oppositional two-sentence structure.\n- NUMBER CONSISTENCY: If the title text contains a specific count (e.g. "4 choses", "7 signes"), the number of content slides MUST exactly equal that number — it overrides the range in the slide structure below.${slideStructurePart}\n\n--- STYLE GUIDE ---\n${styleGuide}\n\n--- CAROUSEL INSTRUCTIONS ---\n${carouselInstructions}\n\n--- AVAILABLE SLIDE TYPES ---\nFor each slide, you must pick a slide_type from the list below. Each type has a fixed set of text roles to fill. Do NOT invent new types or new role keys.\n${slideTypesSpec}\n\nHIGHLIGHT RULES — MANDATORY, NO EXCEPTIONS:\n- For every text role marked [HIGHLIGHT ENABLED], you MUST include ==...== markers in the text.\n- Every such field MUST contain at least one ==highlighted passage==.\n- If a field is marked [HIGHLIGHT ENABLED] and you produce text without any ==...== markers, the output is INVALID.\n- Choose the 1 to 3 most emotionally resonant words or short phrases and wrap them: ==like this==.\n\nAllowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.\n\nReturn ONLY a valid JSON array. No markdown, no explanation, no code block — raw JSON only.\n\nEach carousel object must have:\n{\n  "carousel_type": "<brief description>",\n  "image_prompt_title": "<Illustration prompt for the TITLE slide. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",\n  "image_prompt_content": "<Illustration prompt for the CONTENT slides. Follow STRICTLY the image prompt rules defined in the carousel instructions above. Do NOT invent framing, background, or composition rules — only what the template says.>",\n  "slides": [\n    {\n      "index": 1,\n      "slide_type": "<one of the allowed values above>",\n      "text_fields": { "<role>": "<copy>", ... }\n    },\n    ...\n  ]\n}\n\nIMPORTANT:\n- "text_fields" keys MUST exactly match the roles listed for the chosen slide_type.\n- "image_prompt_title" and "image_prompt_content" MUST always be filled in. NEVER leave them empty.\n- image_prompt_title and image_prompt_content: follow ONLY the framing, composition, and background rules defined in the template's carousel instructions. Do NOT add hardcoded defaults. Max 20 words each.\n- There is NO illustration_prompt on individual slides.\n- All text in "text_fields" is what will be rendered on the slide.`
 
   const imagesNote = images.length > 0
     ? `\n\nREFERENCE IMAGES: ${images.length} image(s) attached. Extract or adapt text from them as instructed by the user.`
     : ''
+
+  // ── USER message (per-call, not cached) ───────────────────────────────
+  // Contains only the dynamic per-carousel bits: history, user override,
+  // count. Images go here too (they're per-carousel).
+  const userText = `${historyBl}${userBlock}Generate exactly ${count} carousel(s) following the system instructions above.${imagesNote}`
 
   type MediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
   type ImageBlock = { type: 'image'; source: { type: 'base64'; media_type: MediaType; data: string } }
@@ -242,17 +257,18 @@ export async function generateCarousels({
   }))
   const messageContent: (ImageBlock | TextBlock)[] = [
     ...imageBlocks,
-    { type: 'text' as const, text: prompt + imagesNote },
+    { type: 'text' as const, text: userText },
   ]
 
   await log?.({
     step: `claude.carousel.request${carouselTag ? '.' + carouselTag : ''}`,
-    message: `generateCarousels: full prompt sent to Claude (${count} carousel(s), ${images.length} image(s))`,
+    message: `generateCarousels: full prompt sent to Claude (${count} carousel(s), ${images.length} image(s), cache=${useCache})`,
     payload: {
       model,
       count,
       tag: carouselTag,
       imageCount: images.length,
+      useCache,
       blocks: {
         masterInstructions,
         avatarInstructions,
@@ -262,15 +278,22 @@ export async function generateCarousels({
         userPrompt,
         slideTypesSpec,
       },
-      fullClaudePrompt: prompt,
+      systemPrompt,
+      userText,
     },
   })
 
+  // cache_control is supported at runtime but the installed SDK's types may
+  // not include it on TextBlockParam yet — cast through to satisfy the compiler.
+  const systemParam = useCache
+    ? ([{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }] as unknown as string)
+    : systemPrompt
   const message = await withRetry(
     () =>
       client.messages.create({
         model,
         max_tokens: 4096,
+        system: systemParam,
         messages: [{ role: 'user', content: messageContent }],
       }),
     log,
@@ -278,10 +301,14 @@ export async function generateCarousels({
   )
 
   const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const usage = message.usage as any
+  const cacheWrite = usage?.cache_creation_input_tokens ?? 0
+  const cacheRead = usage?.cache_read_input_tokens ?? 0
   await log?.({
     step: `claude.carousel.response${carouselTag ? '.' + carouselTag : ''}`,
-    message: 'generateCarousels: raw Claude response',
-    payload: { raw, usage: message.usage },
+    message: `generateCarousels: response (cacheWrite=${cacheWrite}, cacheRead=${cacheRead})`,
+    payload: { raw, usage },
   })
 
   const match = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/)

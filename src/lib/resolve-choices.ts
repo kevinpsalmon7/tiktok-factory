@@ -1,4 +1,24 @@
 /**
+ * Mulberry32-based seeded PRNG. Same seed → same sequence.
+ * Used to "freeze" resolveChoices across a batch so all N carousels share
+ * identical resolved instructions (prerequisite for Anthropic prompt caching).
+ */
+export function makeSeededRandom(seed: string): () => number {
+  // FNV-1a hash → 32-bit unsigned int
+  let h = 2166136261
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(h ^ seed.charCodeAt(i), 16777619)
+  }
+  let s = h >>> 0
+  return () => {
+    s = (s + 0x6D2B79F5) >>> 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
  * Resolves [[option1 | option2 (30%) | option3]] markers in instruction text.
  *
  * Rules:
@@ -12,8 +32,11 @@
  *   [[red | blue | green]]                    → equal 33% each
  *   [[Type 1 (50%) | Type 2 (30%) | Type 3]]  → 50/30/20
  *   [[Type 1 (50%) | Type 2 (50%)]]           → 50/50
+ *
+ * `rand` lets callers inject a seeded PRNG (see makeSeededRandom) so the same
+ * input produces the same output across multiple calls within a batch.
  */
-export function resolveChoices(text: string): string {
+export function resolveChoices(text: string, rand: () => number = Math.random): string {
   return text.replace(/\[\[([^\]]+)\]\]/g, (_match, raw: string) => {
     const options = raw.split('|').map(s => s.trim()).filter(Boolean)
     if (options.length === 0) return ''
@@ -40,10 +63,10 @@ export function resolveChoices(text: string): string {
     if (total <= 0) return parsed[0].label
 
     // Weighted random pick
-    let rand = Math.random() * total
+    let r = rand() * total
     for (let i = 0; i < parsed.length; i++) {
-      rand -= weights[i]
-      if (rand <= 0) return parsed[i].label
+      r -= weights[i]
+      if (r <= 0) return parsed[i].label
     }
     return parsed[parsed.length - 1].label
   })

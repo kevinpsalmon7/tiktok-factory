@@ -15,10 +15,20 @@ type Background = {
   created_at: string
 }
 
+export type BackgroundsMode = 'all' | 'each' | 'title-content'
+
 type BackgroundsTabProps = {
   templateId: string
   userId: string
+  mode: BackgroundsMode
+  onModeChange: (mode: BackgroundsMode) => void
 }
+
+const MODE_OPTIONS: { value: BackgroundsMode; label: string; hint: string }[] = [
+  { value: 'all', label: '1 image for all', hint: '1 image pour tous les slides' },
+  { value: 'each', label: '1 image for each', hint: '1 image différente par slide' },
+  { value: 'title-content', label: '1 title image / 1 content image', hint: '1 image pour title, 1 image pour tous les contents' },
+]
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_SIZE_MB = 15
@@ -28,7 +38,7 @@ function getPublicUrl(storagePath: string) {
   return `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/template-backgrounds/${storagePath}`
 }
 
-export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
+export function BackgroundsTab({ templateId, userId, mode, onModeChange }: BackgroundsTabProps) {
   const [backgrounds, setBackgrounds] = useState<Background[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -169,9 +179,36 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
   return (
     <div>
       <h2 className="font-display text-xl font-semibold mb-1">Backgrounds</h2>
-      <p className="text-sm text-ink-600 mb-4">
+      <p className="text-sm text-ink-600 mb-3">
         Importez des images à utiliser comme fond de vos slides carrousel.
       </p>
+
+      {/* Mode pills */}
+      <div className="mb-4">
+        <p className="text-xs text-ink-600/70 mb-2">Distribution des images sur les slides</p>
+        <div className="flex flex-wrap gap-2">
+          {MODE_OPTIONS.map((opt) => {
+            const active = mode === opt.value
+            return (
+              <button
+                key={opt.value}
+                onClick={() => onModeChange(opt.value)}
+                title={opt.hint}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition border ${
+                  active
+                    ? 'bg-ink-900 text-white border-ink-900 shadow-card'
+                    : 'bg-white text-ink-700 border-cream-200 hover:border-ink-900/40 hover:bg-cream-50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-ink-600/60 mt-1.5">
+          {MODE_OPTIONS.find((o) => o.value === mode)?.hint}
+        </p>
+      </div>
 
       {/* Drop zone */}
       <label

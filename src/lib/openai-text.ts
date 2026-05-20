@@ -85,6 +85,8 @@ type GenerateArgs = {
   carouselTag?: string
   // Min/max number of "content" slides the LLM must generate
   contentSlideRange?: { min: number; max: number }
+  // Accepted for API parity with anthropic.ts (Anthropic-only feature, ignored here)
+  useCache?: boolean
 }
 
 /**

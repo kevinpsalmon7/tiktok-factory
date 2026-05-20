@@ -4,7 +4,7 @@ import { generateCarousels as generateCarouselsGemini } from '@/lib/gemini-text'
 import { generateCarousels as generateCarouselsClaude } from '@/lib/anthropic'
 import { generateCarousels as generateCarouselsChatGPT } from '@/lib/openai-text'
 import { createLogger } from '@/lib/logger'
-import { resolveChoices } from '@/lib/resolve-choices'
+import { resolveChoices, makeSeededRandom } from '@/lib/resolve-choices'
 import { randomUUID } from 'crypto'
 
 /**
@@ -135,6 +135,7 @@ export async function POST(request: Request) {
     carouselTag = '',
     images = [],
     forcedTitle,
+    freezeSeed,
   } = body as {
     templateId: string
     prompt?: string
@@ -145,6 +146,12 @@ export async function POST(request: Request) {
     carouselTag?: string
     images?: { base64: string; mimeType: string }[]
     forcedTitle?: string
+    /**
+     * When provided, seeds resolveChoices() deterministically so all carousels
+     * in a batch share IDENTICAL resolved instructions. Also enables Anthropic
+     * prompt caching (sent by the dashboard when count ≥ 4).
+     */
+    freezeSeed?: string
   }
 
   const runId = incomingRunId || randomUUID()
@@ -216,12 +223,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Resolve [[option1 | option2 (weight%)]] markers in all instruction fields
-    const resolvedCarouselInstructions = resolveChoices(template.carousel_instructions)
-    const resolvedStyleGuide = resolveChoices(template.style_guide)
-    const resolvedMaster = profile?.master_instructions ? resolveChoices(profile.master_instructions) : undefined
-    const resolvedAvatar = resolveChoices(template.avatar_instructions || profile?.avatar_instructions || '')
-    const resolvedRandomization = resolveChoices(template.randomization_instructions || '')
+    // Resolve [[option1 | option2 (weight%)]] markers in all instruction fields.
+    // When freezeSeed is provided, use a seeded PRNG so all N carousels in a
+    // batch produce BYTE-IDENTICAL resolved text — a hard requirement for
+    // Anthropic prompt caching to actually hit the cache.
+    const rand = freezeSeed ? makeSeededRandom(freezeSeed) : Math.random
+    const resolvedCarouselInstructions = resolveChoices(template.carousel_instructions, rand)
+    const resolvedStyleGuide = resolveChoices(template.style_guide, rand)
+    const resolvedMaster = profile?.master_instructions ? resolveChoices(profile.master_instructions, rand) : undefined
+    const resolvedAvatar = resolveChoices(template.avatar_instructions || profile?.avatar_instructions || '', rand)
+    const resolvedRandomization = resolveChoices(template.randomization_instructions || '', rand)
     await log({ step: 'text_one.randomization', message: 'randomization_instructions resolved', payload: { resolvedRandomization } })
 
     const absoluteRules = template.absolute_rules || ''
@@ -252,6 +263,8 @@ export async function POST(request: Request) {
       log,
       carouselTag,
       contentSlideRange: template.layout.contentSlideRange,
+      // Only Anthropic supports the cache_control flag; harmless for other LLMs
+      useCache: !!freezeSeed && llm === 'claude',
     })
 
     const carousel = Array.isArray(carousels) ? carousels[0] : carousels
