@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star, X } from 'lucide-react'
+import { UploadCloud, Trash2, Image as ImageIcon, Loader2, X, ZoomIn } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { compressImage, pLimit } from '@/lib/compressImage'
 
@@ -38,6 +38,7 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [lightbox, setLightbox] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadBackgrounds = useCallback(async () => {
@@ -57,6 +58,14 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
   useEffect(() => {
     loadBackgrounds()
   }, [loadBackgrounds])
+
+  // Close lightbox on Escape
+  useEffect(() => {
+    if (!lightbox) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [lightbox])
 
   async function handleFiles(files: FileList | File[]) {
     const fileArr = Array.from(files)
@@ -78,9 +87,7 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
           return
         }
 
-        // Compress to WebP before upload (falls back to original if smaller)
         const compressed = await compressImage(file)
-
         const ext = compressed.type === 'image/webp' ? 'webp' : (file.name.split('.').pop()?.toLowerCase() || 'jpg')
         const uuid = crypto.randomUUID()
         const storagePath = `${userId}/${templateId}/${uuid}.${ext}`
@@ -98,11 +105,7 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
         const res = await fetch('/api/backgrounds', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            templateId,
-            storagePath,
-            name: file.name.replace(/\.[^.]+$/, ''),
-          }),
+          body: JSON.stringify({ templateId, storagePath, name: file.name.replace(/\.[^.]+$/, '') }),
         })
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
@@ -112,7 +115,7 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
 
         setUploadProgress(prev => prev ? { ...prev, done: prev.done + 1 } : null)
       }),
-      4, // max 4 simultaneous uploads
+      4,
     )
 
     setUploading(false)
@@ -129,21 +132,6 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
       return
     }
     setBackgrounds(prev => prev.filter(b => b.id !== bg.id))
-  }
-
-  async function handleSetDefault(bg: Background) {
-    if (bg.is_default) return
-    const res = await fetch(`/api/backgrounds/${bg.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_default: true }),
-    })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-      setError(body.error || 'Erreur')
-      return
-    }
-    setBackgrounds(prev => prev.map(b => ({ ...b, is_default: b.id === bg.id })))
   }
 
   function toggleSelect(id: string) {
@@ -171,31 +159,18 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
     cancelSelection()
   }
 
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragOver(true)
-  }
-  function handleDragLeave(e: React.DragEvent) {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragOver(false)
-  }
+  function handleDragOver(e: React.DragEvent) { e.preventDefault(); e.stopPropagation(); setDragOver(true) }
+  function handleDragLeave(e: React.DragEvent) { e.preventDefault(); e.stopPropagation(); setDragOver(false) }
   async function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragOver(false)
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await handleFiles(e.dataTransfer.files)
-    }
+    e.preventDefault(); e.stopPropagation(); setDragOver(false)
+    if (e.dataTransfer.files?.length) await handleFiles(e.dataTransfer.files)
   }
 
   return (
     <div>
       <h2 className="font-display text-xl font-semibold mb-1">Backgrounds</h2>
       <p className="text-sm text-ink-600 mb-4">
-        Importez des images à utiliser comme fond de vos slides carrousel. L&apos;image marquée
-        par défaut sera utilisée automatiquement à la génération.
+        Importez des images à utiliser comme fond de vos slides carrousel.
       </p>
 
       {/* Drop zone */}
@@ -205,29 +180,19 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`border-2 border-dashed rounded-xl2 px-6 py-10 mb-4 cursor-pointer transition flex flex-col items-center gap-2 ${
-          dragOver
-            ? 'border-ink-900 bg-pastel-mint/40'
-            : 'border-cream-200 hover:border-ink-900/40 bg-cream-50'
+          dragOver ? 'border-ink-900 bg-pastel-mint/40' : 'border-cream-200 hover:border-ink-900/40 bg-cream-50'
         }`}
       >
-        {uploading ? (
-          <Loader2 size={28} className="text-ink-700 animate-spin" />
-        ) : (
-          <UploadCloud size={28} className="text-ink-700" />
-        )}
+        {uploading ? <Loader2 size={28} className="text-ink-700 animate-spin" /> : <UploadCloud size={28} className="text-ink-700" />}
         <p className="text-sm font-medium text-ink-900">
           {uploading ? 'Upload en cours…' : 'Glisse tes backgrounds ici'}
         </p>
-        <p className="text-xs text-ink-600/70">
-          ou clique pour choisir — JPG, PNG, WebP — max {MAX_SIZE_MB}MB
-        </p>
+        <p className="text-xs text-ink-600/70">ou clique pour choisir — JPG, PNG, WebP — max {MAX_SIZE_MB}MB</p>
         {uploading && uploadProgress && (
           <div className="w-full max-w-xs space-y-1.5">
             <div className="flex justify-between text-xs text-ink-600/70">
               <span>Upload en cours…</span>
-              <span className="font-medium text-ink-800">
-                {uploadProgress.done}/{uploadProgress.total}
-              </span>
+              <span className="font-medium text-ink-800">{uploadProgress.done}/{uploadProgress.total}</span>
             </div>
             <div className="h-1.5 w-full bg-cream-200 rounded-full overflow-hidden">
               <div
@@ -244,12 +209,7 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
           accept={ACCEPTED_TYPES.join(',')}
           multiple
           className="hidden"
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) {
-              handleFiles(e.target.files)
-            }
-            e.target.value = ''
-          }}
+          onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); e.target.value = '' }}
         />
       </label>
 
@@ -263,18 +223,14 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
       {loading ? (
         <div className="text-center py-8 text-ink-600/60 text-sm">Chargement…</div>
       ) : backgrounds.length === 0 ? (
-        <div className="text-center py-8 text-ink-600/60 text-sm">
-          Aucun background importé pour le moment.
-        </div>
+        <div className="text-center py-8 text-ink-600/60 text-sm">Aucun background importé pour le moment.</div>
       ) : (
         <>
           {/* Toolbar */}
           <div className="flex items-center justify-between mb-4">
             {selecting ? (
               <>
-                <span className="text-sm text-ink-600">
-                  {selected.size} sélectionné{selected.size > 1 ? 's' : ''}
-                </span>
+                <span className="text-sm text-ink-600">{selected.size} sélectionné{selected.size > 1 ? 's' : ''}</span>
                 <div className="flex gap-2">
                   {selected.size > 0 && (
                     <button
@@ -305,22 +261,22 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
             )}
           </div>
 
-          {/* Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {backgrounds.map((bg) => (
-              <div
-                key={bg.id}
-                className="group relative flex flex-col rounded-xl2 overflow-hidden bg-cream-100 shadow-soft hover:shadow-card transition"
-              >
-                {/* Thumbnail */}
+          {/* Grid — smaller thumbnails, more columns */}
+          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+            {backgrounds.map((bg) => {
+              const url = getPublicUrl(bg.storage_path)
+              return (
                 <div
-                  className={`relative aspect-[9/16] bg-cream-200 ${selecting ? 'cursor-pointer' : ''} ${selected.has(bg.id) ? 'ring-4 ring-ink-900' : ''}`}
-                  onClick={selecting ? () => toggleSelect(bg.id) : undefined}
+                  key={bg.id}
+                  className={`group relative rounded-lg overflow-hidden bg-cream-200 shadow-soft hover:shadow-card transition cursor-pointer aspect-[9/16] ${
+                    selected.has(bg.id) ? 'ring-2 ring-ink-900' : ''
+                  }`}
+                  onClick={() => selecting ? toggleSelect(bg.id) : setLightbox(url)}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={getPublicUrl(bg.storage_path)}
-                    alt={bg.name || 'Background'}
+                    src={url}
+                    alt="Background"
                     className="w-full h-full object-cover"
                     draggable={false}
                   />
@@ -328,51 +284,32 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
                   {/* Selection overlay */}
                   {selecting && selected.has(bg.id) && (
                     <div className="absolute inset-0 bg-ink-900/30 flex items-center justify-center">
-                      <div className="w-8 h-8 rounded-full bg-ink-900 flex items-center justify-center text-white text-lg font-bold">✓</div>
+                      <div className="w-6 h-6 rounded-full bg-ink-900 flex items-center justify-center text-white text-xs font-bold">✓</div>
                     </div>
                   )}
 
-                  {/* Default star badge */}
-                  <button
-                    onClick={() => handleSetDefault(bg)}
-                    title={bg.is_default ? 'Background par défaut' : 'Définir comme background par défaut'}
-                    className={`absolute top-1.5 left-1.5 p-1.5 rounded-full transition ${
-                      bg.is_default
-                        ? 'bg-pastel-lemon text-ink-900 shadow-soft'
-                        : 'bg-white/80 text-ink-400 opacity-0 group-hover:opacity-100 hover:bg-pastel-lemon hover:text-ink-900'
-                    }`}
-                  >
-                    <Star size={12} className={bg.is_default ? 'fill-ink-900' : ''} />
-                  </button>
-
-                  {/* Delete button */}
-                  <button
-                    onClick={() => handleDelete(bg)}
-                    className="absolute top-1.5 right-1.5 p-1.5 bg-white/80 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-red-50 hover:text-red-600"
-                    title="Supprimer"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  {/* Hover actions (not in select mode) */}
+                  {!selecting && (
+                    <div className="absolute inset-0 bg-ink-900/0 group-hover:bg-ink-900/20 transition flex items-start justify-between p-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setLightbox(url) }}
+                        className="p-1 bg-white/80 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-white"
+                        title="Agrandir"
+                      >
+                        <ZoomIn size={10} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(bg) }}
+                        className="p-1 bg-white/80 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-red-50 hover:text-red-600"
+                        title="Supprimer"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-
-                {/* Name */}
-                {bg.name && (
-                  <div className="px-2 py-1.5">
-                    <p className="text-xs text-ink-700 truncate">{bg.name}</p>
-                  </div>
-                )}
-
-                {/* Default label */}
-                {bg.is_default && (
-                  <div className="px-2 pb-2">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-ink-700 bg-pastel-lemon rounded-full px-2 py-0.5">
-                      <Star size={9} className="fill-ink-700" />
-                      Par défaut
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         </>
       )}
@@ -380,7 +317,30 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
       {backgrounds.length > 0 && (
         <div className="mt-4 text-xs text-ink-600/60 flex items-center gap-2">
           <ImageIcon size={12} />
-          {backgrounds.length} background{backgrounds.length > 1 ? 's' : ''} disponible{backgrounds.length > 1 ? 's' : ''}
+          {backgrounds.length} background{backgrounds.length > 1 ? 's' : ''}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-ink-900/80 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition"
+            onClick={() => setLightbox(null)}
+          >
+            <X size={20} />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightbox}
+            alt="Background"
+            className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            draggable={false}
+          />
         </div>
       )}
     </div>
