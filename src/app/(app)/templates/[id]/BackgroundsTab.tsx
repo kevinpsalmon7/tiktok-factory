@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { compressImage } from '@/lib/compressImage'
 
 type Background = {
   id: string
@@ -76,13 +77,16 @@ export function BackgroundsTab({ templateId, userId }: BackgroundsTabProps) {
         continue
       }
 
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      // Compress to WebP before upload (falls back to original if smaller)
+      const compressed = await compressImage(file)
+
+      const ext = compressed.type === 'image/webp' ? 'webp' : (file.name.split('.').pop()?.toLowerCase() || 'jpg')
       const uuid = crypto.randomUUID()
       const storagePath = `${userId}/${templateId}/${uuid}.${ext}`
 
       const { error: uploadErr } = await supabase.storage
         .from('template-backgrounds')
-        .upload(storagePath, file, { contentType: file.type, upsert: false })
+        .upload(storagePath, compressed, { contentType: compressed.type, upsert: false })
 
       if (uploadErr) {
         setError(`Erreur upload : ${uploadErr.message}`)

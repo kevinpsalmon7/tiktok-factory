@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { UploadCloud, Trash2, Image as ImageIcon, Loader2, Star, Sparkles, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { compressImage } from '@/lib/compressImage'
 import type { TemplatePage } from '@/types/database'
 
 type PagesTabProps = {
@@ -64,14 +65,17 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
         continue
       }
 
+      // Compress to WebP before upload (falls back to original if smaller)
+      const compressed = await compressImage(file)
+
       // 1. Upload directly to Supabase Storage from the browser (no server body size limit)
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const ext = compressed.type === 'image/webp' ? 'webp' : (file.name.split('.').pop()?.toLowerCase() || 'jpg')
       const uuid = crypto.randomUUID()
       const storagePath = `${userId}/${templateId}/${uuid}.${ext}`
 
       const { error: uploadErr } = await supabase.storage
         .from('template-pages')
-        .upload(storagePath, file, { contentType: file.type, upsert: false })
+        .upload(storagePath, compressed, { contentType: compressed.type, upsert: false })
 
       if (uploadErr) {
         setError(`Erreur upload : ${uploadErr.message}`)
