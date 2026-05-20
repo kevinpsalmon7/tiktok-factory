@@ -131,6 +131,8 @@ async function addElement(
         highlight: p.highlight ?? false,
         highlightColor: p.highlightColor ?? '#FFE500',
         shadow: p.shadow,
+        strokeColor: p.strokeColor,
+        strokeWidth: p.strokeWidth,
       }
     })
 
@@ -279,6 +281,12 @@ async function addElement(
           shadowOffsetY: p.shadow.offsetY,
           shadowOpacity: p.shadow.opacity,
         } : {}),
+        ...(p.strokeColor ? {
+          stroke: p.strokeColor,
+          strokeWidth: p.strokeWidth ?? 2,
+          strokeEnabled: true,
+          fillAfterStrokeEnabled: true,
+        } : {}),
       }))
 
       const next = activeParas[pi + 1]
@@ -290,7 +298,7 @@ async function addElement(
 
   if (el.type === 'image') {
     const i = el as ImageElement
-    const src = i.source === 'generated' || i.source === 'pages' ? backgroundUrl : i.assetUrl
+    const src = i.source === 'generated' || i.source === 'pages' || i.source === 'backgrounds' ? backgroundUrl : i.assetUrl
     if (!src) return
 
     const img = await loadImage(src)
