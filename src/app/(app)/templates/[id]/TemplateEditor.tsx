@@ -39,6 +39,7 @@ import { createClient } from '@/lib/supabase/client'
 import { FontPicker } from '@/components/FontPicker'
 import { ReferencesPanel } from '@/components/TemplateBuilder/ReferencesPanel'
 import { PagesTab } from './PagesTab'
+import { BackgroundsTab } from './BackgroundsTab'
 import type {
   TemplateLayout,
   TemplateElement,
@@ -68,7 +69,7 @@ type InitialTemplate = {
   platforms: string[]
 }
 
-type Tab = 'design' | 'instructions' | 'references' | 'pages'
+type Tab = 'design' | 'instructions' | 'references' | 'pages' | 'backgrounds'
 
 const HISTORY_LIMIT = 10
 
@@ -544,6 +545,9 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
         <TabButton active={tab === 'pages'} onClick={() => setTab('pages')}>
           Pages
         </TabButton>
+        <TabButton active={tab === 'backgrounds'} onClick={() => setTab('backgrounds')}>
+          Backgrounds
+        </TabButton>
       </div>
 
       {tab === 'design' ? (
@@ -827,12 +831,19 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
         <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
           <ReferencesPanel templateId={initialTemplate.id} />
         </div>
-      ) : (
+      ) : tab === 'pages' ? (
         <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
           <PagesTab
             templateId={initialTemplate.id}
             userId={userId}
             anthropicApiKey={anthropicApiKey}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 bg-white rounded-xl2 shadow-soft p-6 overflow-y-auto">
+          <BackgroundsTab
+            templateId={initialTemplate.id}
+            userId={userId}
           />
         </div>
       )}
