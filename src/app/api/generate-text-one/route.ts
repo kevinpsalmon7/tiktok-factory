@@ -9,23 +9,61 @@ import { randomUUID } from 'crypto'
 
 /**
  * Detect an explicit title in the user's prompt and return it verbatim.
- * Recognised patterns (case-insensitive):
- *   - titre : <text>
- *   - avec le titre <text>  /  avec ce titre <text>
- *   - titled "<text>"  (English fallback)
- * Returns null if no explicit title is found.
+ *
+ * Strategy — three layers, fall-through:
+ *   1. Strong patterns: "titre/title" + verb + quoted string
+ *      (e.g. `le titre sera "X"`, `the title is "X"`, `titled "X"`)
+ *   2. Looser patterns: legacy `titre : X` / `avec le titre X` patterns
+ *   3. Fallback: if prompt mentions "titre" or "title" AND contains any
+ *      quoted string, take the first quoted string as the title.
+ *
+ * Quotes accepted: "..."  '...'  «...»  "..."  '...'
+ *
+ * Returns null only if there is genuinely no signal at all.
  */
 function extractExactTitle(prompt: string): string | null {
-  const patterns = [
-    /\btitre\s*:\s*["«»]?(.+?)["«»]?\s*$/im,
-    /\btitre\s*:\s*(.+)/im,
-    /\bce titre\s*["«»]?(.+?)["«»]?\s*$/im,
-    /avec (?:le |ce )?titre\s+["«»]?(.+?)["«»]?\s*$/im,
+  // All quote-flavours, opening + closing
+  const Q_OPEN = '["«"\'`‘“]'
+  const Q_CLOSE = '["»"\'`’”]'
+
+  // Layer 1 — title keyword + (verb)? + quoted string. Very tolerant.
+  const strongPatterns = [
+    // FR: le/ce titre (sera|est|doit être|c'est|: ) "X"
+    new RegExp(`(?:le|ce|du|au|comme|pour)\\s+titre\\s+(?:sera|est|doit\\s+être|c['’]est|:\\s*)?\\s*${Q_OPEN}([^"«»'\`\\n\\u2018\\u201C\\u2019\\u201D]{2,200}?)${Q_CLOSE}`, 'i'),
+    // FR: dont le titre (sera|est|...) "X"
+    new RegExp(`dont\\s+(?:le|ce)\\s+titre\\s+(?:sera|est|doit\\s+être|c['’]est|:\\s*)?\\s*${Q_OPEN}([^"«»'\`\\n\\u2018\\u201C\\u2019\\u201D]{2,200}?)${Q_CLOSE}`, 'i'),
+    // FR: titre :/= "X"
+    new RegExp(`\\btitre\\s*[:=]\\s*${Q_OPEN}([^"«»'\`\\n\\u2018\\u201C\\u2019\\u201D]{2,200}?)${Q_CLOSE}`, 'i'),
+    // FR: intitulé "X"
+    new RegExp(`intitul[ée]\\s+${Q_OPEN}([^"«»'\`\\n\\u2018\\u201C\\u2019\\u201D]{2,200}?)${Q_CLOSE}`, 'i'),
+    // EN: (the|this|a) title (is|will be|should be|=|:) "X"
+    new RegExp(`(?:the|this|a)?\\s*title\\s+(?:is|will\\s+be|should\\s+be|must\\s+be|=|:)?\\s*${Q_OPEN}([^"«»'\`\\n\\u2018\\u201C\\u2019\\u201D]{2,200}?)${Q_CLOSE}`, 'i'),
+    // EN: titled "X" / called "X" / named "X"
+    new RegExp(`(?:titled|called|named|entitled)\\s+${Q_OPEN}([^"«»'\`\\n\\u2018\\u201C\\u2019\\u201D]{2,200}?)${Q_CLOSE}`, 'i'),
   ]
-  for (const pattern of patterns) {
-    const match = prompt.match(pattern)
-    if (match?.[1]?.trim()) return match[1].trim()
+  for (const pattern of strongPatterns) {
+    const m = prompt.match(pattern)
+    if (m?.[1]?.trim()) return m[1].trim()
   }
+
+  // Layer 2 — looser legacy patterns (no quotes required)
+  const loosePatterns = [
+    /\btitre\s*[:=]\s*["«»"'`‘“]?([^\n"«»'`‘“’”]{2,200}?)["»"'`’”]?\s*$/im,
+    /\bce titre\s+["«»"'`‘“]?([^\n"«»'`‘“’”]{2,200}?)["»"'`’”]?\s*$/im,
+    /\bavec\s+(?:le|ce)?\s*titre\s+["«»"'`‘“]?([^\n"«»'`‘“’”]{2,200}?)["»"'`’”]?\s*$/im,
+  ]
+  for (const pattern of loosePatterns) {
+    const m = prompt.match(pattern)
+    if (m?.[1]?.trim()) return m[1].trim()
+  }
+
+  // Layer 3 — fallback: prompt mentions title AND has a quoted string → trust it
+  const mentionsTitle = /\b(?:titre|title|titled|entitled|intitul[ée])\b/i.test(prompt)
+  if (mentionsTitle) {
+    const quoted = prompt.match(new RegExp(`${Q_OPEN}([^"«»'\`\\n\\u2018\\u201C\\u2019\\u201D]{3,200}?)${Q_CLOSE}`))
+    if (quoted?.[1]?.trim()) return quoted[1].trim()
+  }
+
   return null
 }
 
@@ -222,8 +260,9 @@ export async function POST(request: Request) {
     }
 
     // Hard-enforce an exact title.
-    // Priority: forcedTitle (explicit bullet from dashboard) > extractExactTitle (pattern match).
-    const exactTitle = forcedTitle?.trim() || extractExactTitle(userPrompt || '')
+    // Priority: forcedTitle (explicit bullet from dashboard) > pattern match on the ORIGINAL prompt
+    // (never the reformulated per-carousel prompt — extractIntent might have lost the title).
+    const exactTitle = forcedTitle?.trim() || extractExactTitle(originalPrompt || userPrompt || '')
     if (exactTitle && Array.isArray(carousel.slides)) {
       const titleTypes = (template.layout.slideTypes || []).filter(
         (st: string) => st === 'title' || st.startsWith('title')
