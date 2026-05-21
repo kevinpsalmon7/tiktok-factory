@@ -232,7 +232,9 @@ export async function POST(request: Request) {
     const resolvedStyleGuide = resolveChoices(template.style_guide, rand)
     const resolvedMaster = profile?.master_instructions ? resolveChoices(profile.master_instructions, rand) : undefined
     const resolvedAvatar = resolveChoices(template.avatar_instructions || profile?.avatar_instructions || '', rand)
-    const resolvedRandomization = resolveChoices(template.randomization_instructions || '', rand)
+    // randomization_instructions is injected into userPrompt (user message, not cached),
+    // so it stays genuinely random even in frozen batches — no need for the seed.
+    const resolvedRandomization = resolveChoices(template.randomization_instructions || '')
     await log({ step: 'text_one.randomization', message: 'randomization_instructions resolved', payload: { resolvedRandomization } })
 
     const absoluteRules = template.absolute_rules || ''
