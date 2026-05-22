@@ -86,7 +86,7 @@ export async function extractIntent(prompt: string, apiKey: string, log?: Logger
   if (!prompt?.trim()) return { count: 1, perCarousel: [prompt || ''] }
 
   const client = new Anthropic({ apiKey })
-  const userContent = `You parse carousel generation requests. Read the user's message and:\n1. Extract the EXACT number of carousels stated (default 1 if not stated)\n2. Write a specific, UNIQUE instruction for EACH carousel — no two can overlap in topic or angle\n   - Honor any explicit topic the user mentioned for specific carousels\n   - For unspecified carousels, invent complementary angles from the same context\n   - Keep instructions in the user's language\n\nReturn ONLY valid JSON: {"count": N, "carousels": ["instruction 1", "instruction 2", ...]}\nThe "carousels" array must have EXACTLY N distinct strings.\n\nExamples:\n- "3 carousels dont un sur la famille et un sur le couple" → {"count":3,"carousels":["TDAH et dynamiques familiales","TDAH et vie de couple / mariage","TDAH et gestion des émotions au quotidien"]}\n- "génère 2 carousels sur le burnout" → {"count":2,"carousels":["Reconnaître les signes du burnout","Se reconstruire après un burnout"]}\n\nUser request: "${prompt.replace(/"/g, "'")}"`
+  const userContent = `You parse carousel generation requests. Read the user's message and:\n1. Extract the EXACT number of carousels stated (default 1 if not stated)\n2. Write a specific, UNIQUE instruction for EACH carousel — no two can overlap in topic or angle\n   - Honor any explicit topic the user mentioned for specific carousels\n   - For unspecified carousels, invent complementary angles from the same context\n   - Keep instructions in the user's language\n\nReturn ONLY valid JSON: {"count": N, "carousels": ["instruction 1", "instruction 2", ...]}\nThe "carousels" array must have EXACTLY N distinct strings.\n\nIMPORTANT: Do NOT invent a topic. If the user did not specify a topic, leave the instructions topic-neutral and rely entirely on the template's own instructions to set the subject matter. Never inject a topic from these examples into your output.\n\nExamples (format only — do NOT copy the topics):\n- "3 carrousels dont un sur le thème A et un sur le thème B" → {"count":3,"carousels":["<thème A>","<thème B>","<angle complémentaire>"]}\n- "génère 2 carrousels" → {"count":2,"carousels":["carrousel 1","carrousel 2"]}\n\nUser request: "${prompt.replace(/"/g, "'")}"`
 
   await log?.({ step: 'claude.intent.request', message: 'extractIntent: sending prompt to Claude', payload: { model: 'claude-haiku-4-5', userPrompt: prompt, fullClaudePrompt: userContent } })
 
@@ -228,7 +228,7 @@ export async function generateCarousels({
           const rolesList = roles.length > 0 ? roles.join(', ') : '(no text fields)'
           const hlRoles = highlightRoles[st] ?? []
           const hlNote = hlRoles.length > 0
-            ? `\n    [HIGHLIGHT ENABLED for: ${hlRoles.map(r => `"${r}"`).join(', ')} — wrap 1–3 emotionally charged words/phrases in ==...== markers, e.g. "The ==ADHD Tax== hits hardest"]`
+            ? `\n    [HIGHLIGHT ENABLED for: ${hlRoles.map(r => `"${r}"`).join(', ')} — wrap 1–3 emotionally charged words/phrases in ==...== markers, e.g. "==a few words== to emphasize"]`
             : ''
           return `  - "${st}" → text_fields keys: ${rolesList}${hlNote}`
         })

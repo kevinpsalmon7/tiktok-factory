@@ -43,9 +43,11 @@ export async function extractIntent(prompt: string, apiKey: string, log?: Logger
 Return ONLY valid JSON: {"count": N, "carousels": ["instruction 1", "instruction 2", ...]}
 The "carousels" array must have EXACTLY N distinct strings.
 
-Examples:
-- "3 carousels dont un sur la famille et un sur le couple" → {"count":3,"carousels":["TDAH et dynamiques familiales","TDAH et vie de couple / mariage","TDAH et gestion des émotions au quotidien"]}
-- "génère 2 carousels sur le burnout" → {"count":2,"carousels":["Reconnaître les signes du burnout","Se reconstruire après un burnout"]}
+IMPORTANT: Do NOT invent a topic. If the user did not specify a topic, leave the instructions topic-neutral and rely entirely on the template's own instructions to set the subject matter. Never inject a topic from these examples into your output.
+
+Examples (format only — do NOT copy the topics):
+- "3 carrousels dont un sur le thème A et un sur le thème B" → {"count":3,"carousels":["<thème A>","<thème B>","<angle complémentaire>"]}
+- "génère 2 carrousels" → {"count":2,"carousels":["carrousel 1","carrousel 2"]}
 
 User request: "${prompt.replace(/"/g, "'")}"`
 
@@ -174,7 +176,7 @@ export async function generateCarousels({
           const rolesList = roles.length > 0 ? roles.join(', ') : '(no text fields)'
           const hlRoles = highlightRoles[st] ?? []
           const hlNote = hlRoles.length > 0
-            ? `\n    [HIGHLIGHT ENABLED for: ${hlRoles.map(r => `"${r}"`).join(', ')} — wrap 1–3 emotionally charged words/phrases in ==...== markers, e.g. "The ==ADHD Tax== hits hardest"]`
+            ? `\n    [HIGHLIGHT ENABLED for: ${hlRoles.map(r => `"${r}"`).join(', ')} — wrap 1–3 emotionally charged words/phrases in ==...== markers, e.g. "==a few words== to emphasize"]`
             : ''
           return `  - "${st}" → text_fields keys: ${rolesList}${hlNote}`
         })
