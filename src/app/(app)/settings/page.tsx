@@ -5,8 +5,6 @@ type ProfileRow = {
   full_name: string | null
   email: string | null
   avatar_url: string | null
-  master_instructions: string
-  avatar_instructions: string
   anthropic_api_key: string | null
   gemini_api_key: string | null
   openai_api_key: string | null
@@ -19,7 +17,7 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, email, avatar_url, master_instructions, avatar_instructions, anthropic_api_key, gemini_api_key, openai_api_key')
+    .select('full_name, email, avatar_url, anthropic_api_key, gemini_api_key, openai_api_key')
     .eq('id', user.id)
     .single<ProfileRow>()
 
@@ -37,8 +35,6 @@ export default async function SettingsPage() {
           full_name: profile?.full_name ?? '',
           email: profile?.email ?? user.email ?? '',
           avatar_url: profile?.avatar_url ?? user.user_metadata?.avatar_url ?? '',
-          master_instructions: profile?.master_instructions ?? '',
-          avatar_instructions: profile?.avatar_instructions ?? '',
           anthropic_api_key: profile?.anthropic_api_key ?? '',
           gemini_api_key: profile?.gemini_api_key ?? '',
           openai_api_key: profile?.openai_api_key ?? '',

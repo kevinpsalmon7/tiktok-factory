@@ -8,6 +8,7 @@ type TemplateRow = {
   name: string
   description: string
   layout: TemplateLayout
+  master_instructions: string
   style_guide: string
   carousel_instructions: string
   gemini_instructions: string
@@ -30,7 +31,7 @@ export default async function TemplateBuilderPage({
   const [{ data: template }, { data: profile }] = await Promise.all([
     supabase
       .from('templates')
-      .select('id, name, description, layout, style_guide, carousel_instructions, gemini_instructions, avatar_instructions, randomization_instructions, absolute_rules, platforms')
+      .select('id, name, description, layout, master_instructions, style_guide, carousel_instructions, gemini_instructions, avatar_instructions, randomization_instructions, absolute_rules, platforms')
       .eq('id', id)
       .eq('user_id', user.id)
       .single<TemplateRow>(),

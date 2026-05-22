@@ -2,15 +2,13 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Save, KeyRound, User, Sparkles, UserCircle } from 'lucide-react'
+import { Save, KeyRound, User, UserCircle } from 'lucide-react'
 import Image from 'next/image'
 
 type ProfileForm = {
   full_name: string
   email: string
   avatar_url: string
-  master_instructions: string
-  avatar_instructions: string
   anthropic_api_key: string
   gemini_api_key: string
   openai_api_key: string
@@ -34,8 +32,6 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
 
     const updates = {
       full_name: profile.full_name,
-      master_instructions: profile.master_instructions,
-      avatar_instructions: profile.avatar_instructions,
       anthropic_api_key: profile.anthropic_api_key || null,
       gemini_api_key: profile.gemini_api_key || null,
       openai_api_key: profile.openai_api_key || null,
@@ -87,34 +83,6 @@ export function SettingsForm({ initialProfile }: { initialProfile: ProfileForm }
             disabled
           />
         </div>
-      </Section>
-
-      <Section
-        title="Global instructions"
-        icon={<Sparkles size={16} />}
-        color="bg-pastel-mint"
-        description="Priority rules applied to all generations."
-      >
-        <textarea
-          className="textarea min-h-[140px]"
-          placeholder="Ex: never use em dash, always write in English..."
-          value={profile.master_instructions}
-          onChange={(e) => update('master_instructions', e.target.value)}
-        />
-      </Section>
-
-      <Section
-        title="Avatar / audience"
-        icon={<User size={16} />}
-        color="bg-pastel-lemon"
-        description="Describe the person or audience you are writing for."
-      >
-        <textarea
-          className="textarea min-h-[140px]"
-          placeholder="Ex: adult women with ADHD diagnosed late, high general knowledge..."
-          value={profile.avatar_instructions}
-          onChange={(e) => update('avatar_instructions', e.target.value)}
-        />
       </Section>
 
       <Section

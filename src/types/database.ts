@@ -12,8 +12,6 @@ export interface Database {
           anthropic_api_key: string | null
           gemini_api_key: string | null
           openai_api_key: string | null
-          master_instructions: string
-          avatar_instructions: string
           created_at: string
           updated_at: string
         }
@@ -25,8 +23,6 @@ export interface Database {
           anthropic_api_key?: string | null
           gemini_api_key?: string | null
           openai_api_key?: string | null
-          master_instructions?: string
-          avatar_instructions?: string
         }
         Update: {
           email?: string | null
@@ -35,8 +31,6 @@ export interface Database {
           anthropic_api_key?: string | null
           gemini_api_key?: string | null
           openai_api_key?: string | null
-          master_instructions?: string
-          avatar_instructions?: string
         }
       }
       templates: {

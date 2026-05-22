@@ -100,8 +100,6 @@ function extractSlideOverrides(prompt: string): SlideOverride[] {
 export const maxDuration = 300
 
 type ProfileRow = {
-  master_instructions: string
-  avatar_instructions: string
   gemini_api_key: string | null
   anthropic_api_key: string | null
   openai_api_key: string | null
@@ -111,6 +109,7 @@ type ProfileRow = {
 import type { TemplateLayout, TextElement } from '@/types/database'
 
 type TemplateRow = {
+  master_instructions: string
   style_guide: string
   carousel_instructions: string
   avatar_instructions: string
@@ -172,13 +171,13 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('master_instructions, avatar_instructions, gemini_api_key, anthropic_api_key, openai_api_key')
+    .select('gemini_api_key, anthropic_api_key, openai_api_key')
     .eq('id', user.id)
     .single<ProfileRow>()
 
   const { data: template } = await supabase
     .from('templates')
-    .select('style_guide, carousel_instructions, avatar_instructions, randomization_instructions, absolute_rules, layout')
+    .select('master_instructions, style_guide, carousel_instructions, avatar_instructions, randomization_instructions, absolute_rules, layout')
     .eq('id', templateId)
     .eq('user_id', user.id)
     .single<TemplateRow>()
@@ -236,8 +235,8 @@ export async function POST(request: Request) {
     const rand = freezeSeed ? makeSeededRandom(freezeSeed) : Math.random
     const resolvedCarouselInstructions = resolveChoices(template.carousel_instructions, rand)
     const resolvedStyleGuide = resolveChoices(template.style_guide, rand)
-    const resolvedMaster = profile?.master_instructions ? resolveChoices(profile.master_instructions, rand) : undefined
-    const resolvedAvatar = resolveChoices(template.avatar_instructions || profile?.avatar_instructions || '', rand)
+    const resolvedMaster = template.master_instructions ? resolveChoices(template.master_instructions, rand) : undefined
+    const resolvedAvatar = resolveChoices(template.avatar_instructions || '', rand)
     // randomization_instructions is injected into userPrompt (user message, not cached),
     // so it stays genuinely random even in frozen batches — no need for the seed.
     const resolvedRandomization = resolveChoices(template.randomization_instructions || '')
@@ -251,7 +250,7 @@ export async function POST(request: Request) {
       payload: {
         carouselChanged: resolvedCarouselInstructions !== template.carousel_instructions,
         styleChanged: resolvedStyleGuide !== template.style_guide,
-        masterChanged: resolvedMaster !== profile?.master_instructions,
+        masterChanged: resolvedMaster !== template.master_instructions,
       },
     })
 

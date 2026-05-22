@@ -60,6 +60,7 @@ type InitialTemplate = {
   name: string
   description: string
   layout: TemplateLayout
+  master_instructions: string
   style_guide: string
   carousel_instructions: string
   gemini_instructions: string
@@ -104,6 +105,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
   const [avatarInstructions, setAvatarInstructions] = useState(initialTemplate.avatar_instructions)
   const [randomizationInstructions, setRandomizationInstructions] = useState(initialTemplate.randomization_instructions)
   const [absoluteRules, setAbsoluteRules] = useState(initialTemplate.absolute_rules)
+  const [masterInstructions, setMasterInstructions] = useState(initialTemplate.master_instructions)
 
   // Normalize incoming layout so older saves still work with the new model.
   const normalizedInitial = useMemo(
@@ -443,6 +445,7 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
         avatar_instructions: avatarInstructions,
         randomization_instructions: randomizationInstructions,
         absolute_rules: absoluteRules,
+        master_instructions: masterInstructions,
       })
       .eq('id', initialTemplate.id)
     setSaving(false)
@@ -785,13 +788,19 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
               </p>
             </div>
             <InstructionBudgetGauge
-              texts={[absoluteRules, randomizationInstructions, carouselInstructions, avatarInstructions, styleGuide, geminiInstructions]}
+              texts={[masterInstructions, absoluteRules, randomizationInstructions, carouselInstructions, avatarInstructions, styleGuide, geminiInstructions]}
             />
           </div>
           <div className="space-y-8">
             <InstructionSection
+              title="Master instructions"
+              subtitle="High-level voice & brand rules for this template. Highest priority — applies before all other sections."
+              value={masterInstructions}
+              onChange={setMasterInstructions}
+            />
+            <InstructionSection
               title="Mandatory rules"
-              subtitle="Rules the AI can never violate. Highest priority, right after the master instructions in settings."
+              subtitle="Rules the AI can never violate. Highest priority, right after the master instructions."
               value={absoluteRules}
               onChange={setAbsoluteRules}
             />
