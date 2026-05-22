@@ -163,6 +163,7 @@ function buildSlideStructureBlock(
   if (!slideTypes.length) return ''
   const range = contentSlideRange ?? { min: 5, max: 8 }
   const isContent = (st: string) => st === 'content' || st.startsWith('content')
+  const hasContentType = slideTypes.some(isContent)
 
   const lines = slideTypes.map(st => {
     if (isContent(st)) {
@@ -171,9 +172,11 @@ function buildSlideStructureBlock(
     return `  - "${st}": exactly 1 slide`
   })
 
+  // If no slide type uses the "content*" naming convention, every type is fixed at 1.
+  // Don't inflate the total with the default range — that would contradict the "exactly 1" per-type lines.
   const fixedCount = slideTypes.filter(st => !isContent(st)).length
-  const minTotal = fixedCount + range.min
-  const maxTotal = fixedCount + range.max
+  const minTotal = hasContentType ? fixedCount + range.min : slideTypes.length
+  const maxTotal = hasContentType ? fixedCount + range.max : slideTypes.length
 
   return `MANDATORY SLIDE STRUCTURE — enforce this AFTER master instructions, BEFORE style guide:
 Generate slides in this ORDER with these EXACT COUNTS:
