@@ -20,9 +20,10 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
-  const { prompt: userPrompt, llm = 'gemini' } = body as {
+  const { prompt: userPrompt, llm = 'gemini', templateId } = body as {
     prompt?: string
     llm?: 'gemini' | 'claude' | 'chatgpt'
+    templateId?: string
   }
 
   const runId = randomUUID()
@@ -52,13 +53,20 @@ export async function POST(request: Request) {
   // Load history block — same logic as before, returned to client so each
   // generate-text-one call doesn't have to re-fetch it.
   const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: recentCarousels } = await supabase
+  let recentCarouselsQuery = supabase
     .from('carousels')
     .select('title, carousel_type, slides, created_at')
     .eq('user_id', user.id)
     .eq('status', 'completed')
     .gte('created_at', twoDaysAgo)
     .order('created_at', { ascending: false })
+
+  // Filter by template so history from other templates doesn't bleed into this generation
+  if (templateId) {
+    recentCarouselsQuery = recentCarouselsQuery.eq('template_id', templateId)
+  }
+
+  const { data: recentCarousels } = await recentCarouselsQuery
     .returns<{ title: string; carousel_type: string; slides: { text_fields: Record<string, string> }[]; created_at: string }[]>()
 
   let historyBlock = ''

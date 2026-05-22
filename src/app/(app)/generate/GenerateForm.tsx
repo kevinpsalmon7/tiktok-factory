@@ -485,7 +485,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
       const intentRes = await fetch('/api/extract-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, llm }),
+        body: JSON.stringify({ prompt, llm, templateId }),
       })
       if (!intentRes.ok) {
         const errBody = await intentRes.json().catch(() => ({ error: `HTTP ${intentRes.status}` }))
