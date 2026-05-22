@@ -22,8 +22,6 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState('')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -122,20 +120,23 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
     await loadPages()
   }
 
-  async function handleSetDefault(page: TemplatePage) {
-    if (page.is_default) return
+  // Toggle: click active default → unset (0 defaults). Click other → set as sole default.
+  async function handleToggleDefault(page: TemplatePage) {
+    const newValue = !page.is_default
     const res = await fetch(`/api/pages/${page.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_default: true }),
+      body: JSON.stringify({ is_default: newValue }),
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
       setError(body.error || 'Erreur')
       return
     }
-    // Update state locally — no full reload
-    setPages(prev => prev.map(p => ({ ...p, is_default: p.id === page.id })))
+    // Setting as default → clear all others; unsetting → just flip this one
+    setPages(prev => prev.map(p =>
+      newValue ? { ...p, is_default: p.id === page.id } : { ...p, is_default: p.id === page.id ? false : p.is_default }
+    ))
   }
 
   async function handleGenerateSummary(page: TemplatePage) {
@@ -182,28 +183,6 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
     setPages(prev => prev.filter(p => !selected.has(p.id)))
     setDeleting(false)
     cancelSelection()
-  }
-
-  function startEdit(page: TemplatePage) {
-    setEditingId(page.id)
-    setEditValue(page.summary)
-  }
-
-  async function commitEdit(page: TemplatePage) {
-    setEditingId(null)
-    if (editValue === page.summary) return
-    const res = await fetch(`/api/pages/${page.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ summary: editValue }),
-    })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-      setError(body.error || 'Erreur')
-      await loadPages()
-      return
-    }
-    setPages(prev => prev.map(p => p.id === page.id ? { ...p, summary: editValue } : p))
   }
 
   function handleDragOver(e: React.DragEvent) {
@@ -345,109 +324,66 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
             </button>
           )}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
           {pages.map((page) => (
             <div
               key={page.id}
-              className="group relative flex flex-col rounded-xl2 overflow-hidden bg-cream-100 shadow-soft hover:shadow-card transition"
+              className={`group relative rounded-lg overflow-hidden bg-cream-200 shadow-soft hover:shadow-card transition cursor-pointer aspect-[9/16] ${
+                selected.has(page.id) ? 'ring-2 ring-ink-900' : ''
+              }`}
+              onClick={selecting ? () => toggleSelect(page.id) : undefined}
             >
-              {/* Thumbnail */}
-              <div
-                className={`relative aspect-[3/4] bg-cream-200 ${selecting ? 'cursor-pointer' : ''} ${selected.has(page.id) ? 'ring-4 ring-ink-900' : ''}`}
-                onClick={selecting ? () => toggleSelect(page.id) : undefined}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={getPublicUrl(page.storage_path)}
-                  alt={page.summary || `Page ${page.position + 1}`}
-                  className="w-full h-full object-cover"
-                  draggable={false}
-                />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={getPublicUrl(page.storage_path)}
+                alt={page.summary || `Page ${page.position + 1}`}
+                title={page.summary || undefined}
+                className="w-full h-full object-cover"
+                draggable={false}
+              />
 
-                {/* Selection overlay */}
-                {selecting && selected.has(page.id) && (
-                  <div className="absolute inset-0 bg-ink-900/30 flex items-center justify-center">
-                    <div className="w-8 h-8 rounded-full bg-ink-900 flex items-center justify-center text-white text-lg font-bold">✓</div>
-                  </div>
-                )}
-
-                {/* Default star badge */}
+              {/* Default star — always visible when active, hover otherwise */}
+              {!selecting && (
                 <button
-                  onClick={() => handleSetDefault(page)}
-                  title={page.is_default ? 'Page par défaut' : 'Définir comme page par défaut'}
-                  className={`absolute top-1.5 left-1.5 p-1.5 rounded-full transition ${
+                  onClick={(e) => { e.stopPropagation(); handleToggleDefault(page) }}
+                  title={page.is_default ? 'Retirer le statut par défaut' : 'Définir comme page par défaut'}
+                  className={`absolute top-1 left-1 p-1 rounded-full transition ${
                     page.is_default
                       ? 'bg-pastel-lemon text-ink-900 shadow-soft'
                       : 'bg-white/80 text-ink-400 opacity-0 group-hover:opacity-100 hover:bg-pastel-lemon hover:text-ink-900'
                   }`}
                 >
-                  <Star size={12} className={page.is_default ? 'fill-ink-900' : ''} />
+                  <Star size={10} className={page.is_default ? 'fill-ink-900' : ''} />
                 </button>
+              )}
 
-                {/* Delete button */}
-                <button
-                  onClick={() => handleDelete(page)}
-                  className="absolute top-1.5 right-1.5 p-1.5 bg-white/80 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-red-50 hover:text-red-600"
-                  title="Supprimer"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-
-              {/* Summary */}
-              <div className="p-2 space-y-1.5">
-                {editingId === page.id ? (
-                  <textarea
-                    autoFocus
-                    value={editValue}
-                    onChange={e => setEditValue(e.target.value)}
-                    onBlur={() => commitEdit(page)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        commitEdit(page)
-                      }
-                      if (e.key === 'Escape') {
-                        setEditingId(null)
-                      }
-                    }}
-                    className="w-full text-xs text-ink-800 bg-white border border-ink-200 rounded-lg px-2 py-1.5 resize-none outline-none focus:ring-2 focus:ring-ink-900/10"
-                    rows={3}
-                  />
-                ) : (
+              {/* Hover actions (not in select mode) */}
+              {!selecting && (
+                <div className="absolute inset-0 bg-ink-900/0 group-hover:bg-ink-900/20 transition flex items-start justify-end p-1 gap-1">
                   <button
-                    onClick={() => startEdit(page)}
-                    className="w-full text-left"
-                    title="Cliquer pour modifier le résumé"
+                    onClick={(e) => { e.stopPropagation(); handleGenerateSummary(page) }}
+                    disabled={generatingId === page.id}
+                    title="Regénérer le résumé Claude"
+                    className="p-1 bg-white/80 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-white disabled:opacity-50"
                   >
-                    {page.summary ? (
-                      <p className="text-xs text-ink-700 leading-relaxed">{page.summary}</p>
-                    ) : (
-                      <p className="text-xs text-ink-400 italic">Cliquer pour ajouter un résumé…</p>
-                    )}
+                    {generatingId === page.id
+                      ? <Loader2 size={10} className="animate-spin" />
+                      : <Sparkles size={10} />}
                   </button>
-                )}
-                {/* Generate summary button */}
-                <button
-                  onClick={() => handleGenerateSummary(page)}
-                  disabled={generatingId === page.id}
-                  title="Générer le résumé avec Claude"
-                  className="flex items-center gap-1 text-[10px] text-ink-500 hover:text-ink-900 transition disabled:opacity-50"
-                >
-                  {generatingId === page.id
-                    ? <Loader2 size={10} className="animate-spin" />
-                    : <Sparkles size={10} />}
-                  {generatingId === page.id ? 'Génération…' : 'Générer le résumé'}
-                </button>
-              </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(page) }}
+                    className="p-1 bg-white/80 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-red-50 hover:text-red-600"
+                    title="Supprimer"
+                  >
+                    <Trash2 size={10} />
+                  </button>
+                </div>
+              )}
 
-              {/* Default label */}
-              {page.is_default && (
-                <div className="px-2 pb-2">
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-ink-700 bg-pastel-lemon rounded-full px-2 py-0.5">
-                    <Star size={9} className="fill-ink-700" />
-                    Par défaut
-                  </span>
+              {/* Selection overlay */}
+              {selecting && selected.has(page.id) && (
+                <div className="absolute inset-0 bg-ink-900/30 flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-ink-900 flex items-center justify-center text-white text-xs font-bold">✓</div>
                 </div>
               )}
             </div>
