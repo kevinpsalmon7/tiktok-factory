@@ -302,6 +302,13 @@ export interface TemplateLayout {
    * - 'title-content' → one image for title slides, another for content slides
    */
   backgroundsMode?: 'all' | 'each' | 'title-content'
+  /**
+   * How the book page is selected when source='pages':
+   * - 'semantic'    → (default) page selected AFTER text gen, based on content relevance
+   * - 'random-first' → page picked randomly BEFORE text gen; its summary is injected
+   *                    into the prompt so Claude writes the title to match the page
+   */
+  pagesMode?: 'semantic' | 'random-first'
 }
 
 // ── Carousel slide types ──────────────────────────────────────────────────

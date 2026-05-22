@@ -156,8 +156,56 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     const ac = new AbortController()
     updateCarousel(idx, { abortController: ac, status: 'text', error: undefined })
 
+    // Detect image source types from the template layout (needed early for random-first)
+    const generatedImageSlideTypes = new Set(
+      (selectedTemplate.layout.elements ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((el: any) => el.type === 'image' && el.source === 'generated')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((el: any) => el.slideType as string)
+    )
+    const pagesImageSlideTypes = new Set(
+      (selectedTemplate.layout.elements ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((el: any) => el.type === 'image' && el.source === 'pages')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((el: any) => el.slideType as string)
+    )
+    const backgroundsImageSlideTypes = new Set(
+      (selectedTemplate.layout.elements ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((el: any) => el.type === 'image' && el.source === 'backgrounds')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((el: any) => el.slideType as string)
+    )
+
     if (stoppedRef.current.has(idx) || stopAllRef.current) {
       throw new Error('cancelled')
+    }
+
+    // 0. If pagesMode='random-first', pick a page NOW (before text gen) so its
+    //    summary can be injected into the prompt for the title slide.
+    const pagesMode = selectedTemplate.layout.pagesMode ?? 'semantic'
+    let preSelectedPageUrl: string | null = null
+    let preSelectedPageSummary: string | null = null
+    if (pagesMode === 'random-first' && pagesImageSlideTypes.size > 0) {
+      try {
+        const pgRes = await fetch(`/api/pages?templateId=${encodeURIComponent(templateId)}`, { signal: ac.signal })
+        if (pgRes.ok) {
+          const pgData = await pgRes.json()
+          const list: { storage_path: string; summary: string; is_default: boolean }[] = pgData.pages || []
+          if (list.length > 0) {
+            // Prefer default page if set, otherwise pick randomly
+            const defaultPage = list.find(p => p.is_default)
+            const pick = defaultPage ?? list[Math.floor(Math.random() * list.length)]
+            const projectRef = 'qwxqiksnuykmdpnxghok'
+            preSelectedPageUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/template-pages/${pick.storage_path}`
+            preSelectedPageSummary = pick.summary || null
+          }
+        }
+      } catch {
+        // Non-fatal — falls back to semantic selection later
+      }
     }
 
     // 1. Generate text for this single carousel
@@ -175,6 +223,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
         images: images.map(({ base64, mimeType }) => ({ base64, mimeType })),
         forcedTitle: state.forcedTitle,
         freezeSeed,
+        pageContext: preSelectedPageSummary ?? undefined,
       }),
       signal: ac.signal,
     })
@@ -205,33 +254,7 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
     const carouselId: string = newRow.id
     updateCarousel(idx, { id: carouselId, status: 'images' })
 
-    // 3. Generate images only for slide types that have a generated image element
-    const generatedImageSlideTypes = new Set(
-      (selectedTemplate.layout.elements ?? [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((el: any) => el.type === 'image' && el.source === 'generated')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((el: any) => el.slideType as string)
-    )
-
-    // Detect slide types that use 'pages' source
-    const pagesImageSlideTypes = new Set(
-      (selectedTemplate.layout.elements ?? [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((el: any) => el.type === 'image' && el.source === 'pages')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((el: any) => el.slideType as string)
-    )
-
-    // Detect slide types that use 'backgrounds' source
-    const backgroundsImageSlideTypes = new Set(
-      (selectedTemplate.layout.elements ?? [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((el: any) => el.type === 'image' && el.source === 'backgrounds')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((el: any) => el.slideType as string)
-    )
-
+    // 3. Generate images for slide types that need AI-generated images
     async function fetchImg(imgPrompt: string, slideIndex: number, slideType: string): Promise<string> {
       if (!imgPrompt) return ''
       const res = await fetch('/api/generate-image', {
@@ -290,22 +313,28 @@ export function GenerateForm({ templates }: { templates: Template[] }) {
 
     if (stoppedRef.current.has(idx) || stopAllRef.current) throw new Error('cancelled')
 
-    // Resolve 'pages' source slides: pick the best book page for this carousel
+    // Resolve 'pages' source slides.
+    // random-first: page was already picked before text gen → reuse it directly.
+    // semantic (default): pick the most relevant page based on generated slide content.
     let pageUrl: string | null = null
     if (pagesImageSlideTypes.size > 0) {
-      try {
-        const pageRes = await fetch('/api/pages/select', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ templateId, slides }),
-          signal: ac.signal,
-        })
-        if (pageRes.ok) {
-          const pageData = await pageRes.json()
-          pageUrl = pageData.pageUrl || null
+      if (preSelectedPageUrl) {
+        pageUrl = preSelectedPageUrl
+      } else {
+        try {
+          const pageRes = await fetch('/api/pages/select', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ templateId, slides }),
+            signal: ac.signal,
+          })
+          if (pageRes.ok) {
+            const pageData = await pageRes.json()
+            pageUrl = pageData.pageUrl || null
+          }
+        } catch {
+          // Non-fatal: if no page found, pageUrl stays null
         }
-      } catch {
-        // Non-fatal: if no page found, pageUrl stays null
       }
     }
 

@@ -136,6 +136,7 @@ export async function POST(request: Request) {
     images = [],
     forcedTitle,
     freezeSeed,
+    pageContext,
   } = body as {
     templateId: string
     prompt?: string
@@ -152,6 +153,11 @@ export async function POST(request: Request) {
      * prompt caching (sent by the dashboard when count ≥ 4).
      */
     freezeSeed?: string
+    /**
+     * Summary of the pre-selected book page (pagesMode='random-first').
+     * Injected into the prompt so Claude writes the title to match this page.
+     */
+    pageContext?: string
   }
 
   const runId = incomingRunId || randomUUID()
@@ -256,7 +262,11 @@ export async function POST(request: Request) {
       masterInstructions: resolvedMaster,
       absoluteRules,
       avatarInstructions: resolvedAvatar,
-      userPrompt: (userPrompt || '') + (resolvedRandomization ? '\n\n' + resolvedRandomization : ''),
+      userPrompt: (userPrompt || '')
+        + (resolvedRandomization ? '\n\n' + resolvedRandomization : '')
+        + (pageContext
+          ? `\n\nPAGE DE LIVRE SÉLECTIONNÉE — OBLIGATOIRE : le titre de la slide "title" DOIT s'inspirer directement du contenu de cette page. Résumé de la page :\n"${pageContext}"`
+          : ''),
       historyBlock,
       count: 1,
       rolesByType,

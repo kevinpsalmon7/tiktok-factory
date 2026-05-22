@@ -6,16 +6,33 @@ import { createClient } from '@/lib/supabase/client'
 import { compressImage, pLimit } from '@/lib/compressImage'
 import type { TemplatePage } from '@/types/database'
 
+export type PagesMode = 'semantic' | 'random-first'
+
 type PagesTabProps = {
   templateId: string
   userId: string
   anthropicApiKey: string | null
+  mode: PagesMode
+  onModeChange: (mode: PagesMode) => void
 }
+
+const MODE_OPTIONS: { value: PagesMode; label: string; hint: string }[] = [
+  {
+    value: 'semantic',
+    label: 'Page la plus pertinente',
+    hint: 'Claude choisit la page la plus cohérente avec le texte généré (comportement par défaut)',
+  },
+  {
+    value: 'random-first',
+    label: 'Page au hasard → titre adapté',
+    hint: 'Une page est tirée au sort avant la génération — Claude écrit le titre en fonction de son contenu',
+  },
+]
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_SIZE_MB = 15
 
-export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey }: PagesTabProps) {
+export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey, mode, onModeChange }: PagesTabProps) {
   const [pages, setPages] = useState<TemplatePage[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -212,11 +229,37 @@ export function PagesTab({ templateId, userId, anthropicApiKey: _anthropicApiKey
   return (
     <div>
       <h2 className="font-display text-xl font-semibold mb-1">Pages de livre</h2>
-      <p className="text-sm text-ink-600 mb-4">
+      <p className="text-sm text-ink-600 mb-3">
         Importez des photos de pages de livre. Claude génère automatiquement un résumé pour
-        chaque page. Lors de la génération, la page la plus pertinente sera utilisée comme
-        fond du slide &laquo;&nbsp;pages&nbsp;&raquo;.
+        chaque page, utilisé lors de la génération.
       </p>
+
+      {/* Mode pills */}
+      <div className="mb-4">
+        <p className="text-xs text-ink-600/70 mb-2">Sélection de la page à la génération</p>
+        <div className="flex flex-wrap gap-2">
+          {MODE_OPTIONS.map((opt) => {
+            const active = mode === opt.value
+            return (
+              <button
+                key={opt.value}
+                onClick={() => onModeChange(opt.value)}
+                title={opt.hint}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition border ${
+                  active
+                    ? 'bg-ink-900 text-white border-ink-900 shadow-card'
+                    : 'bg-white text-ink-700 border-cream-200 hover:border-ink-900/40 hover:bg-cream-50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-ink-600/60 mt-1.5">
+          {MODE_OPTIONS.find((o) => o.value === mode)?.hint}
+        </p>
+      </div>
 
       {/* Drop zone */}
       <label

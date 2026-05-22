@@ -837,6 +837,8 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
             templateId={initialTemplate.id}
             userId={userId}
             anthropicApiKey={anthropicApiKey}
+            mode={layout.pagesMode ?? 'semantic'}
+            onModeChange={(m) => pushLayout((l) => ({ ...l, pagesMode: m }))}
           />
         </div>
       ) : (
