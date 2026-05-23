@@ -262,34 +262,79 @@ export async function POST(request: Request) {
       },
     })
 
-    const carousels = await generateCarousels({
-      apiKey,
-      styleGuide: resolvedStyleGuide,
-      carouselInstructions: resolvedCarouselInstructions,
-      masterInstructions: resolvedMaster,
-      absoluteRules,
-      avatarInstructions: resolvedAvatar,
-      userPrompt: (userPrompt || '')
-        + (resolvedRandomization ? '\n\n' + resolvedRandomization : '')
-        + (pageContext
-          ? `\n\nPAGE DE LIVRE SÉLECTIONNÉE — OBLIGATOIRE : le titre de la slide "title" DOIT s'inspirer directement du contenu de cette page. Résumé de la page :\n"${pageContext}"`
-          : ''),
-      historyBlock,
-      count: 1,
-      rolesByType,
-      highlightRoles,
-      images,
-      log,
-      carouselTag,
-      contentSlideRange: template.layout.contentSlideRange,
-      wordColorsByRole,
-      // Only Anthropic supports the cache_control flag; harmless for other LLMs
-      useCache: !!freezeSeed && llm === 'claude',
-    })
+    // Validate that every text_field whose role has highlight enabled contains
+    // at least one ==...== marker. Returns the list of missing locations.
+    function findMissingHighlights(slides: { index?: number; slide_type: string; text_fields: Record<string, string> }[]): string[] {
+      const missing: string[] = []
+      const HL = /==.+?==/s
+      for (const slide of slides) {
+        const required = highlightRoles[slide.slide_type] ?? []
+        for (const role of required) {
+          const value = slide.text_fields?.[role] ?? ''
+          if (!HL.test(value)) {
+            missing.push(`slide ${slide.index ?? '?'} (${slide.slide_type}) role "${role}"`)
+          }
+        }
+      }
+      return missing
+    }
 
-    const carousel = Array.isArray(carousels) ? carousels[0] : carousels
-    if (!carousel) {
-      throw new Error('No carousel returned by LLM')
+    const MAX_HL_ATTEMPTS = 3
+    const basePrompt = (userPrompt || '')
+      + (resolvedRandomization ? '\n\n' + resolvedRandomization : '')
+      + (pageContext
+        ? `\n\nPAGE DE LIVRE SÉLECTIONNÉE — OBLIGATOIRE : le titre de la slide "title" DOIT s'inspirer directement du contenu de cette page. Résumé de la page :\n"${pageContext}"`
+        : '')
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let carousel: any = null
+    let missingHl: string[] = []
+    for (let attempt = 1; attempt <= MAX_HL_ATTEMPTS; attempt++) {
+      // On retry, prepend a strong reinforcement reminding the model what it missed.
+      const reinforcement = attempt > 1
+        ? `CRITICAL — your previous attempt FAILED validation. You omitted the mandatory ==...== highlight markers on the following locations: ${missingHl.join('; ')}.\nYou MUST wrap the required passages in ==...== markers on every [HIGHLIGHT ENABLED] field. The output is INVALID without them.\n\n`
+        : ''
+
+      const carousels = await generateCarousels({
+        apiKey,
+        styleGuide: resolvedStyleGuide,
+        carouselInstructions: resolvedCarouselInstructions,
+        masterInstructions: resolvedMaster,
+        absoluteRules,
+        avatarInstructions: resolvedAvatar,
+        userPrompt: reinforcement + basePrompt,
+        historyBlock,
+        count: 1,
+        rolesByType,
+        highlightRoles,
+        images,
+        log,
+        carouselTag: attempt > 1 ? `${carouselTag}.retry${attempt - 1}` : carouselTag,
+        contentSlideRange: template.layout.contentSlideRange,
+        wordColorsByRole,
+        // Prompt cache must stay disabled on retries (different system prompt context)
+        useCache: !!freezeSeed && llm === 'claude' && attempt === 1,
+      })
+
+      carousel = Array.isArray(carousels) ? carousels[0] : carousels
+      if (!carousel) {
+        throw new Error('No carousel returned by LLM')
+      }
+
+      missingHl = findMissingHighlights(carousel.slides || [])
+      if (missingHl.length === 0) {
+        if (attempt > 1) {
+          await log({ step: 'text_one.highlight_recovered', message: `highlights recovered on attempt ${attempt}`, payload: { tag: carouselTag, attempt } })
+        }
+        break
+      }
+
+      await log({
+        step: 'text_one.highlight_missing',
+        message: `attempt ${attempt}/${MAX_HL_ATTEMPTS}: missing highlights on ${missingHl.length} location(s)`,
+        level: attempt === MAX_HL_ATTEMPTS ? 'warn' : 'info',
+        payload: { tag: carouselTag, attempt, missing: missingHl },
+      })
     }
 
     // Hard-enforce an exact title.
