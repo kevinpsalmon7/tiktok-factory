@@ -263,20 +263,36 @@ export async function POST(request: Request) {
     })
 
     // Validate that every text_field whose role has highlight enabled contains
-    // at least one ==...== marker. Returns the list of missing locations.
-    function findMissingHighlights(slides: { index?: number; slide_type: string; text_fields: Record<string, string> }[]): string[] {
-      const missing: string[] = []
-      const HL = /==.+?==/s
+    // EXACTLY ONE ==...== marker. Returns a list of human-readable problems.
+    // Title slides are special-cased: their title field may contain >1 markers
+    // ONLY if every marker is the same case-insensitive word repeated (e.g.
+    // ==ADHD== appearing multiple times in the same title — the ADHD Girly
+    // template demands this).
+    function findHighlightProblems(slides: { index?: number; slide_type: string; text_fields: Record<string, string> }[]): string[] {
+      const problems: string[] = []
+      const HL = /==(.+?)==/gs
       for (const slide of slides) {
         const required = highlightRoles[slide.slide_type] ?? []
+        const isTitleSlide = slide.slide_type === 'title' || slide.slide_type.startsWith('title')
         for (const role of required) {
           const value = slide.text_fields?.[role] ?? ''
-          if (!HL.test(value)) {
-            missing.push(`slide ${slide.index ?? '?'} (${slide.slide_type}) role "${role}"`)
+          const matches = [...value.matchAll(HL)].map(m => m[1].trim())
+          const loc = `slide ${slide.index ?? '?'} (${slide.slide_type}) role "${role}"`
+          if (matches.length === 0) {
+            problems.push(`${loc}: missing — must wrap exactly one passage in ==...==`)
+            continue
           }
+          if (matches.length === 1) continue
+          // More than 1 marker: accept ONLY on title slide title field when every match
+          // is the same word (case-insensitive) — handles "==ADHD== ... ==ADHD==" cases.
+          if (isTitleSlide && role === 'title') {
+            const unique = new Set(matches.map(m => m.toLowerCase()))
+            if (unique.size === 1) continue
+          }
+          problems.push(`${loc}: has ${matches.length} highlights but must have exactly 1 (found: ${matches.map(m => `"${m}"`).join(', ')})`)
         }
       }
-      return missing
+      return problems
     }
 
     const MAX_HL_ATTEMPTS = 3
@@ -288,11 +304,11 @@ export async function POST(request: Request) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let carousel: any = null
-    let missingHl: string[] = []
+    let hlProblems: string[] = []
     for (let attempt = 1; attempt <= MAX_HL_ATTEMPTS; attempt++) {
       // On retry, prepend a strong reinforcement reminding the model what it missed.
       const reinforcement = attempt > 1
-        ? `CRITICAL — your previous attempt FAILED validation. You omitted the mandatory ==...== highlight markers on the following locations: ${missingHl.join('; ')}.\nYou MUST wrap the required passages in ==...== markers on every [HIGHLIGHT ENABLED] field. The output is INVALID without them.\n\n`
+        ? `CRITICAL — your previous attempt FAILED validation on the ==...== highlight rules:\n${hlProblems.map(p => `  • ${p}`).join('\n')}\n\nFollow the highlight rules in the carousel instructions EXACTLY. Re-read the "FINAL CHECK BEFORE SUBMITTING" section and verify EACH text_field has the correct number of ==...== markers (usually exactly one) before returning. The output is INVALID otherwise.\n\n`
         : ''
 
       const carousels = await generateCarousels({
@@ -321,8 +337,8 @@ export async function POST(request: Request) {
         throw new Error('No carousel returned by LLM')
       }
 
-      missingHl = findMissingHighlights(carousel.slides || [])
-      if (missingHl.length === 0) {
+      hlProblems = findHighlightProblems(carousel.slides || [])
+      if (hlProblems.length === 0) {
         if (attempt > 1) {
           await log({ step: 'text_one.highlight_recovered', message: `highlights recovered on attempt ${attempt}`, payload: { tag: carouselTag, attempt } })
         }
@@ -330,10 +346,10 @@ export async function POST(request: Request) {
       }
 
       await log({
-        step: 'text_one.highlight_missing',
-        message: `attempt ${attempt}/${MAX_HL_ATTEMPTS}: missing highlights on ${missingHl.length} location(s)`,
+        step: 'text_one.highlight_problems',
+        message: `attempt ${attempt}/${MAX_HL_ATTEMPTS}: ${hlProblems.length} highlight problem(s)`,
         level: attempt === MAX_HL_ATTEMPTS ? 'warn' : 'info',
-        payload: { tag: carouselTag, attempt, missing: missingHl },
+        payload: { tag: carouselTag, attempt, problems: hlProblems },
       })
     }
 
