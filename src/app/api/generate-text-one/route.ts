@@ -202,6 +202,9 @@ export async function POST(request: Request) {
   // Build the per-slide-type role map and highlight-enabled roles from the template layout.
   const rolesByType: Record<string, string[]> = {}
   const highlightRoles: Record<string, string[]> = {}
+  // Per-role → wordColors taken from the TextElement that owns the role.
+  // Shape: { slideType: { role: [{ word, color }, ...] } }
+  const wordColorsByRole: Record<string, Record<string, { word: string; color: string }[]>> = {}
   for (const st of template.layout.slideTypes || []) rolesByType[st] = []
   for (const el of template.layout.elements || []) {
     if (el.type === 'text') {
@@ -215,6 +218,11 @@ export async function POST(request: Request) {
           : [textEl.role]
       for (const role of roles) {
         if (!rolesByType[el.slideType].includes(role)) rolesByType[el.slideType].push(role)
+        // Propagate element.wordColors to each role this element covers
+        if (textEl.wordColors && textEl.wordColors.length > 0) {
+          if (!wordColorsByRole[el.slideType]) wordColorsByRole[el.slideType] = {}
+          wordColorsByRole[el.slideType][role] = textEl.wordColors.filter(wc => wc.word && wc.color)
+        }
       }
       // Track which roles have highlight enabled
       for (const p of textEl.paragraphs ?? []) {
@@ -274,7 +282,7 @@ export async function POST(request: Request) {
       log,
       carouselTag,
       contentSlideRange: template.layout.contentSlideRange,
-      wordColors: template.layout.wordColors,
+      wordColorsByRole,
       // Only Anthropic supports the cache_control flag; harmless for other LLMs
       useCache: !!freezeSeed && llm === 'claude',
     })

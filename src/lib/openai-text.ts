@@ -85,8 +85,8 @@ type GenerateArgs = {
   carouselTag?: string
   // Min/max number of "content" slides the LLM must generate
   contentSlideRange?: { min: number; max: number }
-  // Per-word color directives — the LLM wraps matching occurrences in {{...}}
-  wordColors?: { word: string; color: string }[]
+  // Per-role word-color directives: { slideType: { role: [{word, color}, ...] } }
+  wordColorsByRole?: Record<string, Record<string, { word: string; color: string }[]>>
   // Accepted for API parity with anthropic.ts (Anthropic-only feature, ignored here)
   useCache?: boolean
 }
@@ -138,11 +138,19 @@ export async function generateCarousels({
   log,
   carouselTag = '',
   contentSlideRange,
-  wordColors,
+  wordColorsByRole,
 }: GenerateArgs) {
-  const wordColorList = (wordColors ?? []).filter(wc => wc.word && wc.color)
-  const wordColorBlock = wordColorList.length > 0
-    ? `\n\nWORD COLORS — MANDATORY:\n- Every occurrence of the following exact words/phrases MUST be wrapped in {{...}} markers.\n- Match is case-insensitive but the wrapped text must preserve the original casing.\n- Do NOT wrap any word that is not in this list.\n- Words to wrap: ${wordColorList.map(wc => `"${wc.word}"`).join(', ')}\n- Example: if "ADHD" is in the list, write "Living with {{ADHD}} is hard" (not "Living with ADHD is hard").`
+  const wordColorLines: string[] = []
+  for (const [st, byRole] of Object.entries(wordColorsByRole ?? {})) {
+    for (const [role, list] of Object.entries(byRole)) {
+      const words = list.filter(wc => wc.word).map(wc => `"${wc.word}"`)
+      if (words.length > 0) {
+        wordColorLines.push(`  - slide_type "${st}", role "${role}": wrap ${words.join(', ')}`)
+      }
+    }
+  }
+  const wordColorBlock = wordColorLines.length > 0
+    ? `\n\nWORD COLORS — MANDATORY:\n- For specific (slide_type, role) pairs, every occurrence of the listed words MUST be wrapped in {{...}} markers.\n- Match is case-insensitive but the wrapped text must preserve the original casing.\n- Do NOT wrap a word for a (slide_type, role) pair unless it is listed below.\n- Example: if a "title" role lists "ADHD", write "Living with {{ADHD}} is hard" in that field.\n- Per-(slide_type, role) word lists:\n${wordColorLines.join('\n')}`
     : ''
   const client = new OpenAI({ apiKey })
 

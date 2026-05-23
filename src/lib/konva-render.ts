@@ -58,7 +58,7 @@ export async function renderSlideToDataUrl(
     .sort((a, b) => a.zIndex - b.zIndex)
 
   for (const el of visible) {
-    await addElement(layer, el, slide, backgroundUrl, layout.wordColors)
+    await addElement(layer, el, slide, backgroundUrl)
   }
 
   layer.draw()
@@ -79,8 +79,7 @@ async function addElement(
   layer: Konva.Layer,
   el: TemplateElement,
   slide: CarouselSlide,
-  backgroundUrl?: string,
-  wordColors?: { word: string; color: string }[]
+  backgroundUrl?: string
 ) {
   const common = {
     x: el.x,
@@ -126,7 +125,7 @@ async function addElement(
       // Color segments computed once: each segment is `==`-stripped already,
       // so concatenating their text yields exactly `text`.
       const colorSegments: ColorSegment[] = hasColorMarkers(rawTextRaw)
-        ? parseColorSegments(rawTextRaw, wordColors).map(s => ({
+        ? parseColorSegments(rawTextRaw, t.wordColors).map(s => ({
             text: stripHighlightMarkers(s.text),
             color: s.color,
           }))
