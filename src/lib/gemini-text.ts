@@ -206,7 +206,22 @@ WRITING RULES — ZERO TOLERANCE:
 - FORBIDDEN: em dash "—". Replace with period or line break.
 - FORBIDDEN: "---" as separator.
 - FORBIDDEN: "-" as punctuation or pause substitute (only inside compound words).
-- FORBIDDEN: the "It wasn't X. It was Y." construction and ALL its variants ("It's not X. It's Y.", "Ce n'est pas X. C'est Y.", "Pas X. Juste Y.", "Not X. Y.", etc.). Never use this oppositional two-sentence structure. Find a direct, affirmative formulation instead.
+- FORBIDDEN — OPPOSITIONAL TWO-SENTENCE STRUCTURE — ABSOLUTE ZERO TOLERANCE:
+  Never write a sentence pair of the form "[negative claim about X]. [affirmative claim about Y]." that opposes two ideas. Banned in any language, any tense, any pronoun, any verb (be, mean, feel, look, sound, seem, etc.), anywhere in the text.
+  EXAMPLES OF FORBIDDEN PATTERNS (each line is BANNED, plus every variant you can think of):
+    "It's not X. It's Y." • "It isn't X. It's Y." • "It wasn't X. It was Y." • "It's not just X. It's Y."
+    "This is not X. This is Y." • "This isn't X. This is Y."
+    "That's not X. That's Y."
+    "You're not X. You're Y." • "You aren't X. You are Y." • "You don't X. You Y."
+    "I'm not X. I'm Y." • "I don't X. I Y."
+    "Not X. (Just) Y." • "Not X — Y." • "It's not about X. It's about Y."
+    "Ce n'est pas X. C'est Y." • "Ce n'est pas X, c'est Y." • "Ce n'est pas juste X. C'est Y."
+    "Pas X. (Juste) Y." • "Ce n'est pas X mais Y." • "Ce n'est pas une question de X. C'est une question de Y."
+    "Tu n'es pas X. Tu es Y." • "Vous n'êtes pas X. Vous êtes Y."
+    "Ce n'est pas que tu X. C'est que tu Y."
+  REWRITE EVERY SUCH CONSTRUCTION as a single direct affirmative statement.
+  ✗ "It's not laziness. It's executive dysfunction." → ✓ "Your brain struggles with executive function."
+  ✗ "Ce n'est pas un manque de volonté, c'est neurologique." → ✓ "C'est neurologique."
 - NUMBER CONSISTENCY: If the title text contains a specific count (e.g. "4 choses", "7 signes"), the number of content slides MUST exactly equal that number — it overrides the range in the slide structure below.${slideStructurePart}
 
 --- STYLE GUIDE ---

@@ -5,6 +5,7 @@ import { generateCarousels as generateCarouselsClaude } from '@/lib/anthropic'
 import { generateCarousels as generateCarouselsChatGPT } from '@/lib/openai-text'
 import { createLogger } from '@/lib/logger'
 import { resolveChoices, makeSeededRandom } from '@/lib/resolve-choices'
+import { findForbiddenPatterns } from '@/lib/forbidden-patterns'
 import { randomUUID } from 'crypto'
 
 /**
@@ -305,10 +306,22 @@ export async function POST(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let carousel: any = null
     let hlProblems: string[] = []
+    let forbiddenHits: { location: string; pattern: string; snippet: string }[] = []
     for (let attempt = 1; attempt <= MAX_HL_ATTEMPTS; attempt++) {
-      // On retry, prepend a strong reinforcement reminding the model what it missed.
-      const reinforcement = attempt > 1
-        ? `CRITICAL — your previous attempt FAILED validation on the ==...== highlight rules:\n${hlProblems.map(p => `  • ${p}`).join('\n')}\n\nFollow the highlight rules in the carousel instructions EXACTLY. Re-read the "FINAL CHECK BEFORE SUBMITTING" section and verify EACH text_field has the correct number of ==...== markers (usually exactly one) before returning. The output is INVALID otherwise.\n\n`
+      // On retry, prepend a strong reinforcement listing every previous failure.
+      const reinforcementParts: string[] = []
+      if (attempt > 1 && hlProblems.length > 0) {
+        reinforcementParts.push(
+          `Your previous attempt FAILED the ==...== highlight rules:\n${hlProblems.map(p => `  • ${p}`).join('\n')}\nFollow the highlight rules in the carousel instructions EXACTLY. Verify each text_field has the correct number of ==...== markers (usually exactly one) before returning.`
+        )
+      }
+      if (attempt > 1 && forbiddenHits.length > 0) {
+        reinforcementParts.push(
+          `Your previous attempt USED THE FORBIDDEN OPPOSITIONAL TWO-SENTENCE STRUCTURE — this is BANNED in every language and every variant:\n${forbiddenHits.map(h => `  • ${h.location}: pattern "${h.pattern}" — snippet: "${h.snippet}"`).join('\n')}\nRewrite the offending text as a single direct affirmative sentence. NO "It's not X. It's Y.", NO "Ce n'est pas X. C'est Y.", NO variant.`
+        )
+      }
+      const reinforcement = reinforcementParts.length > 0
+        ? `CRITICAL — your previous attempt FAILED validation:\n\n${reinforcementParts.join('\n\n')}\n\nThe output is INVALID until ALL these problems are fixed.\n\n`
         : ''
 
       const carousels = await generateCarousels({
@@ -338,18 +351,21 @@ export async function POST(request: Request) {
       }
 
       hlProblems = findHighlightProblems(carousel.slides || [])
-      if (hlProblems.length === 0) {
+      forbiddenHits = findForbiddenPatterns(carousel.slides || [])
+      const totalProblems = hlProblems.length + forbiddenHits.length
+
+      if (totalProblems === 0) {
         if (attempt > 1) {
-          await log({ step: 'text_one.highlight_recovered', message: `highlights recovered on attempt ${attempt}`, payload: { tag: carouselTag, attempt } })
+          await log({ step: 'text_one.validation_recovered', message: `output recovered on attempt ${attempt}`, payload: { tag: carouselTag, attempt } })
         }
         break
       }
 
       await log({
-        step: 'text_one.highlight_problems',
-        message: `attempt ${attempt}/${MAX_HL_ATTEMPTS}: ${hlProblems.length} highlight problem(s)`,
+        step: 'text_one.validation_failed',
+        message: `attempt ${attempt}/${MAX_HL_ATTEMPTS}: ${hlProblems.length} highlight, ${forbiddenHits.length} forbidden-pattern problem(s)`,
         level: attempt === MAX_HL_ATTEMPTS ? 'warn' : 'info',
-        payload: { tag: carouselTag, attempt, problems: hlProblems },
+        payload: { tag: carouselTag, attempt, highlightProblems: hlProblems, forbiddenHits },
       })
     }
 
