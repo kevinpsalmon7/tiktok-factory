@@ -171,24 +171,10 @@ export function BuilderCanvas({
             'bottom-center',
           ]}
           boundBoxFunc={(oldBox, newBox) => {
-            // boundBoxFunc receives coordinates in ABSOLUTE stage pixels.
-            // Convert canvas logical bounds to stage pixels for correct clamping.
-            const left   = RULER_SIZE
-            const top    = RULER_SIZE
-            const right  = RULER_SIZE + layout.width  * scale
-            const bottom = RULER_SIZE + layout.height * scale
-
-            let { x, y, width, height } = newBox
-
-            // Clamp to canvas — left/top anchors
-            if (x < left)   { width += x - left;   x = left }
-            if (y < top)    { height += y - top;    y = top  }
-            // Clamp to canvas — right/bottom anchors
-            if (x + width  > right)  width  = right  - x
-            if (y + height > bottom) height = bottom - y
-
-            if (width < 20 || height < 20) return oldBox
-            return { ...newBox, x, y, width, height }
+            // No canvas clamps — boxes may extend beyond the canvas (Affinity-style).
+            // Only enforce a minimum size so handles stay grabbable.
+            if (newBox.width < 20 || newBox.height < 20) return oldBox
+            return newBox
           }}
           onTransformEnd={() => setSnapLines([])}
         />
@@ -354,10 +340,10 @@ function ElementNode({
     onTap: locked ? undefined : onSelect,
     onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
       const node = e.target
-      const W = layout.width
-      const H = layout.height
-      let nx = Math.max(0, Math.min(W - element.width, node.x()))
-      let ny = Math.max(0, Math.min(H - element.height, node.y()))
+      // No canvas clamps — elements may extend beyond the canvas (Affinity-style).
+      // The final render clips at canvas bounds naturally.
+      let nx = node.x()
+      let ny = node.y()
       if (snapEnabled) {
         const result = computeSnap(nx, ny, element.width, element.height, layout, element.id)
         nx = result.x
@@ -371,8 +357,8 @@ function ElementNode({
     },
     onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
       onSnapChange([])
-      const x = Math.max(0, Math.min(layout.width - element.width, Math.round(e.target.x())))
-      const y = Math.max(0, Math.min(layout.height - element.height, Math.round(e.target.y())))
+      const x = Math.round(e.target.x())
+      const y = Math.round(e.target.y())
       // Committed update: creates one undo history entry for the whole drag
       onUpdate({ x, y })
     },
