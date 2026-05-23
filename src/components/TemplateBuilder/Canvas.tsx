@@ -454,7 +454,7 @@ function resolveParagraphs(element: TextElement): ResolvedParagraph[] {
     fontWeight: element.fontWeight || 400,
     color: element.color,
     align: (element.align || 'left') as 'left' | 'center' | 'right',
-    lineHeight: element.lineHeight || 1.2,
+    lineHeight: element.lineHeight || 1.25,
   }
   const src: TextParagraph[] =
     element.paragraphs && element.paragraphs.length > 0

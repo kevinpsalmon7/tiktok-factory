@@ -112,7 +112,7 @@ async function addElement(
           rawText: '', rawTextOriginal: '', colorSegments: [] as ColorSegment[],
           text: '', fontFamily: t.fontFamily, fontSize: t.fontSize,
           fontWeight: t.fontWeight, color: t.color,
-          align: 'left' as const, lineHeight: 1.2,
+          align: 'left' as const, lineHeight: 1.25,
           lines: [] as string[], lh: 0, highlight: false, highlightColor: '#FFE500',
         }
       }
@@ -134,7 +134,7 @@ async function addElement(
       const fontFamily = p.fontFamily ?? t.fontFamily
       const fontSize = p.fontSize ?? t.fontSize
       const fontWeight = p.fontWeight ?? t.fontWeight
-      const lineHeight = p.lineHeight ?? t.lineHeight ?? 1.2
+      const lineHeight = p.lineHeight ?? t.lineHeight ?? 1.25
       const lines = text ? wrapText(text, textW, fontSize, fontFamily, fontWeight) : []
       return {
         isSeparator: false as const,
