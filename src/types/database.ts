@@ -44,6 +44,7 @@ export interface Database {
           carousel_instructions: string
           gemini_instructions: string
           platforms: string[]
+          thumbnail_url: string | null
           created_at: string
           updated_at: string
         }
@@ -57,6 +58,7 @@ export interface Database {
           carousel_instructions?: string
           gemini_instructions?: string
           platforms?: string[]
+          thumbnail_url?: string | null
         }
         Update: {
           name?: string
@@ -66,6 +68,7 @@ export interface Database {
           carousel_instructions?: string
           gemini_instructions?: string
           platforms?: string[]
+          thumbnail_url?: string | null
         }
       }
       template_references: {

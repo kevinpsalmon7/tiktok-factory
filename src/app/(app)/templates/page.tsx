@@ -1,16 +1,12 @@
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { LayoutTemplate } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
 import { CreateTemplateButton } from './CreateTemplateButton'
-import { DuplicateTemplateButton } from './DuplicateTemplateButton'
+import { TemplateCard } from './TemplateCard'
 
 type TemplateRow = {
   id: string
   name: string
-  description: string
-  platforms: string[]
-  updated_at: string
+  thumbnail_url: string | null
 }
 
 export default async function TemplatesPage() {
@@ -20,7 +16,7 @@ export default async function TemplatesPage() {
 
   const { data: templates } = await supabase
     .from('templates')
-    .select('id, name, description, platforms, updated_at')
+    .select('id, name, thumbnail_url')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
     .returns<TemplateRow[]>()
@@ -56,34 +52,13 @@ export default async function TemplatesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {templates.map((t) => (
-            <Link
+            <TemplateCard
               key={t.id}
-              href={`/templates/${t.id}`}
-              className="pastel-card bg-white hover:bg-cream-50 flex flex-col gap-3 group relative"
-            >
-              <DuplicateTemplateButton templateId={t.id} templateName={t.name} />
-              <div className="aspect-[9/16] rounded-xl bg-cream-100 flex items-center justify-center">
-                <LayoutTemplate size={48} className="text-ink-600/30" />
-              </div>
-              <div>
-                <h3 className="font-display text-xl font-semibold text-ink-900">
-                  {t.name}
-                </h3>
-                {t.description && (
-                  <p className="text-sm text-ink-600 mt-1 line-clamp-2">{t.description}</p>
-                )}
-                <div className="flex items-center gap-2 mt-3">
-                  {t.platforms.map((p) => (
-                    <span key={p} className="chip bg-cream-100 text-ink-700 text-[10px]">
-                      {p}
-                    </span>
-                  ))}
-                  <span className="ml-auto text-xs text-ink-600/50">
-                    {formatDate(t.updated_at)}
-                  </span>
-                </div>
-              </div>
-            </Link>
+              id={t.id}
+              name={t.name}
+              thumbnailUrl={t.thumbnail_url}
+              userId={user.id}
+            />
           ))}
         </div>
       )}
