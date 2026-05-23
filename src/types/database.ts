@@ -303,6 +303,13 @@ export interface TemplateLayout {
    *                    into the prompt so Claude writes the title to match the page
    */
   pagesMode?: 'semantic' | 'random-first'
+  /**
+   * Per-word color overrides. The LLM is instructed to wrap exact occurrences
+   * of `word` in `{{...}}` markers; the renderer then applies `color` to those
+   * segments instead of the paragraph's default color.
+   * Example: [{ word: 'ADHD', color: '#FF3B30' }]
+   */
+  wordColors?: { word: string; color: string }[]
 }
 
 // ── Carousel slide types ──────────────────────────────────────────────────

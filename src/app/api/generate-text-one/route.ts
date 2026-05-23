@@ -274,6 +274,7 @@ export async function POST(request: Request) {
       log,
       carouselTag,
       contentSlideRange: template.layout.contentSlideRange,
+      wordColors: template.layout.wordColors,
       // Only Anthropic supports the cache_control flag; harmless for other LLMs
       useCache: !!freezeSeed && llm === 'claude',
     })

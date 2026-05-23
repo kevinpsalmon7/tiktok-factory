@@ -14,6 +14,12 @@ import {
   hasHighlightMarkers,
   computeHighlightRects,
 } from '@/lib/highlight-utils'
+import {
+  parseColorSegments,
+  stripColorMarkers,
+  hasColorMarkers,
+  type ColorSegment,
+} from '@/lib/word-colors-utils'
 
 export async function renderSlideToDataUrl(
   layout: TemplateLayout,
@@ -52,7 +58,7 @@ export async function renderSlideToDataUrl(
     .sort((a, b) => a.zIndex - b.zIndex)
 
   for (const el of visible) {
-    await addElement(layer, el, slide, backgroundUrl)
+    await addElement(layer, el, slide, backgroundUrl, layout.wordColors)
   }
 
   layer.draw()
@@ -73,7 +79,8 @@ async function addElement(
   layer: Konva.Layer,
   el: TemplateElement,
   slide: CarouselSlide,
-  backgroundUrl?: string
+  backgroundUrl?: string,
+  wordColors?: { word: string; color: string }[]
 ) {
   const common = {
     x: el.x,
@@ -102,14 +109,28 @@ async function addElement(
         return {
           isSeparator: true as const,
           spacerH: p.separatorHeight,
-          rawText: '', text: '', fontFamily: t.fontFamily, fontSize: t.fontSize,
+          rawText: '', rawTextOriginal: '', colorSegments: [] as ColorSegment[],
+          text: '', fontFamily: t.fontFamily, fontSize: t.fontSize,
           fontWeight: t.fontWeight, color: t.color,
           align: 'left' as const, lineHeight: 1.2,
           lines: [] as string[], lh: 0, highlight: false, highlightColor: '#FFE500',
         }
       }
-      const rawText = slide.text_fields?.[p.role ?? t.role] ?? ''
-      const text = stripHighlightMarkers(rawText)
+      const rawTextRaw = slide.text_fields?.[p.role ?? t.role] ?? ''
+      // Two-stage stripping:
+      //   rawTextRaw           — original, has both ==xx== and {{yy}} markers
+      //   rawTextForHighlight  — only {{yy}} stripped; consumed by computeHighlightRects
+      //   text                 — both stripped; used for wrapping and as final display
+      const rawTextForHighlight = stripColorMarkers(rawTextRaw)
+      const text = stripHighlightMarkers(rawTextForHighlight)
+      // Color segments computed once: each segment is `==`-stripped already,
+      // so concatenating their text yields exactly `text`.
+      const colorSegments: ColorSegment[] = hasColorMarkers(rawTextRaw)
+        ? parseColorSegments(rawTextRaw, wordColors).map(s => ({
+            text: stripHighlightMarkers(s.text),
+            color: s.color,
+          }))
+        : []
       const fontFamily = p.fontFamily ?? t.fontFamily
       const fontSize = p.fontSize ?? t.fontSize
       const fontWeight = p.fontWeight ?? t.fontWeight
@@ -118,7 +139,9 @@ async function addElement(
       return {
         isSeparator: false as const,
         spacerH: 0,
-        rawText,
+        rawText: rawTextForHighlight,
+        rawTextOriginal: rawTextRaw,
+        colorSegments,
         text,
         fontFamily,
         fontSize,
@@ -259,35 +282,49 @@ async function addElement(
         }
       }
 
-      layer.add(new Konva.Text({
-        x: textX,
-        y: curY,
-        width: textW,
-        text: p.text,
-        fontSize: p.fontSize,
-        fontFamily: p.fontFamily,
-        fontStyle: isBold ? 'bold' : 'normal',
-        fill: p.color,
-        align: p.align,
-        lineHeight: p.lineHeight,
-        verticalAlign: 'top',
-        opacity: t.opacity ?? 1,
-        listening: false,
-        ...(p.shadow ? {
-          shadowEnabled: true,
-          shadowColor: p.shadow.color,
-          shadowBlur: p.shadow.blur,
-          shadowOffsetX: p.shadow.offsetX,
-          shadowOffsetY: p.shadow.offsetY,
-          shadowOpacity: p.shadow.opacity,
-        } : {}),
-        ...(p.strokeColor ? {
-          stroke: p.strokeColor,
-          strokeWidth: p.strokeWidth ?? 2,
-          strokeEnabled: true,
-          fillAfterStrokeEnabled: true,
-        } : {}),
-      }))
+      // Choose render path: colored segments (if any color marker matched) or
+      // a single Konva.Text. Single-Text path is unchanged from before.
+      const hasColoredSegments = p.colorSegments.some(s => s.color)
+      if (hasColoredSegments) {
+        renderColoredText(layer, {
+          x: textX, y: curY, width: textW,
+          lines: p.lines, segments: p.colorSegments,
+          fontSize: p.fontSize, fontFamily: p.fontFamily, fontWeight: p.fontWeight,
+          isBold, defaultColor: p.color, align: p.align, lh: p.lh,
+          opacity: t.opacity ?? 1,
+          shadow: p.shadow, strokeColor: p.strokeColor, strokeWidth: p.strokeWidth,
+        })
+      } else {
+        layer.add(new Konva.Text({
+          x: textX,
+          y: curY,
+          width: textW,
+          text: p.text,
+          fontSize: p.fontSize,
+          fontFamily: p.fontFamily,
+          fontStyle: isBold ? 'bold' : 'normal',
+          fill: p.color,
+          align: p.align,
+          lineHeight: p.lineHeight,
+          verticalAlign: 'top',
+          opacity: t.opacity ?? 1,
+          listening: false,
+          ...(p.shadow ? {
+            shadowEnabled: true,
+            shadowColor: p.shadow.color,
+            shadowBlur: p.shadow.blur,
+            shadowOffsetX: p.shadow.offsetX,
+            shadowOffsetY: p.shadow.offsetY,
+            shadowOpacity: p.shadow.opacity,
+          } : {}),
+          ...(p.strokeColor ? {
+            stroke: p.strokeColor,
+            strokeWidth: p.strokeWidth ?? 2,
+            strokeEnabled: true,
+            fillAfterStrokeEnabled: true,
+          } : {}),
+        }))
+      }
 
       const next = activeParas[pi + 1]
       const gap = next && !next.isSeparator ? PARA_GAP : 0
@@ -435,6 +472,117 @@ function wrapText(
     lines.push(current)
   }
   return lines
+}
+
+/**
+ * Render a paragraph whose text has per-word colored segments.
+ *
+ * Walks each wrapped line, splits it into colored sub-segments by mapping
+ * line characters to their source-segment colors, and draws each sub-segment
+ * as a separate Konva.Shape so we can apply different fillStyles within the
+ * same visual line. Shadow + stroke + alignment are preserved across segments.
+ */
+function renderColoredText(
+  layer: Konva.Layer,
+  opts: {
+    x: number; y: number; width: number
+    lines: string[]
+    segments: ColorSegment[]
+    fontSize: number; fontFamily: string; fontWeight: number | string | undefined
+    isBold: boolean
+    defaultColor: string
+    align: 'left' | 'center' | 'right'
+    lh: number
+    opacity: number
+    shadow?: { color: string; offsetX: number; offsetY: number; blur: number; opacity: number }
+    strokeColor?: string
+    strokeWidth?: number
+  }
+) {
+  // Build a flat char→color map for the joined display text.
+  // `lines` are substrings of this joined text (in order, with line breaks
+  // taken from wrapText — spaces between word-break boundaries are dropped).
+  const fullText = opts.segments.map(s => s.text).join('')
+  const charColors: (string | null)[] = []
+  for (const seg of opts.segments) {
+    for (let i = 0; i < seg.text.length; i++) charColors.push(seg.color)
+  }
+
+  let cursorInFull = 0
+
+  opts.lines.forEach((line, li) => {
+    // Locate the line inside fullText starting from cursorInFull.
+    // Note: wrapText drops the space between wrapped words, so we may skip
+    // 0 or more whitespace chars before the line start.
+    let lineStart = fullText.indexOf(line, cursorInFull)
+    if (lineStart === -1) lineStart = cursorInFull
+    cursorInFull = lineStart + line.length
+
+    // Slice color map for this line.
+    const lineColors = charColors.slice(lineStart, lineStart + line.length)
+
+    // Group consecutive same-color chars into draw-segments.
+    type Sub = { text: string; color: string }
+    const subs: Sub[] = []
+    let curText = ''
+    let curColor: string | null = null
+    for (let i = 0; i < line.length; i++) {
+      const c = lineColors[i] ?? null
+      if (i === 0) { curText = line[i]; curColor = c; continue }
+      if (c === curColor) {
+        curText += line[i]
+      } else {
+        subs.push({ text: curText, color: curColor ?? opts.defaultColor })
+        curText = line[i]
+        curColor = c
+      }
+    }
+    if (curText) subs.push({ text: curText, color: curColor ?? opts.defaultColor })
+
+    // Compute per-sub widths and the line's total width for alignment.
+    const subWidths = subs.map(s =>
+      measureTextWidth(s.text, opts.fontSize, opts.fontFamily, opts.fontWeight)
+    )
+    const lineW = subWidths.reduce((a, b) => a + b, 0)
+    const alignOffset =
+      opts.align === 'center' ? (opts.width - lineW) / 2
+      : opts.align === 'right' ? opts.width - lineW
+      : 0
+    const lineY = opts.y + li * opts.lh
+
+    let cursorX = opts.x + alignOffset
+    subs.forEach((sub, si) => {
+      const subW = subWidths[si]
+      layer.add(new Konva.Text({
+        x: cursorX,
+        y: lineY,
+        text: sub.text,
+        fontSize: opts.fontSize,
+        fontFamily: opts.fontFamily,
+        fontStyle: opts.isBold ? 'bold' : 'normal',
+        fill: sub.color,
+        align: 'left',
+        verticalAlign: 'top',
+        opacity: opts.opacity,
+        listening: false,
+        ...(opts.shadow ? {
+          shadowEnabled: true,
+          shadowColor: opts.shadow.color,
+          shadowBlur: opts.shadow.blur,
+          shadowOffsetX: opts.shadow.offsetX,
+          shadowOffsetY: opts.shadow.offsetY,
+          shadowOpacity: opts.shadow.opacity,
+        } : {}),
+        ...(opts.strokeColor ? {
+          stroke: opts.strokeColor,
+          strokeWidth: opts.strokeWidth ?? 2,
+          strokeEnabled: true,
+          fillAfterStrokeEnabled: true,
+        } : {}),
+      }))
+      cursorX += subW
+    })
+  })
 }
 
 // Re-export for consumers that might want it

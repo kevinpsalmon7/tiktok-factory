@@ -834,6 +834,10 @@ export function TemplateEditor({ initialTemplate, userId, anthropicApiKey }: Tem
               value={geminiInstructions}
               onChange={setGeminiInstructions}
             />
+            <WordColorsSection
+              value={layout.wordColors ?? []}
+              onChange={(next) => pushLayout((l) => ({ ...l, wordColors: next }))}
+            />
           </div>
         </div>
       ) : tab === 'references' ? (
@@ -1908,6 +1912,77 @@ function InstructionSection({
         onChange={(e) => onChange(e.target.value)}
         placeholder="Empty — write or import a PDF, .txt or .md file…"
       />
+    </div>
+  )
+}
+
+type WordColor = { word: string; color: string }
+
+function WordColorsSection({
+  value,
+  onChange,
+}: {
+  value: WordColor[]
+  onChange: (next: WordColor[]) => void
+}) {
+  function update(idx: number, patch: Partial<WordColor>) {
+    onChange(value.map((wc, i) => (i === idx ? { ...wc, ...patch } : wc)))
+  }
+  function remove(idx: number) {
+    onChange(value.filter((_, i) => i !== idx))
+  }
+  function add() {
+    onChange([...value, { word: '', color: '#FF3B30' }])
+  }
+
+  return (
+    <div className="space-y-3 pb-8 border-b border-cream-100 last:border-0 last:pb-0">
+      <div>
+        <h3 className="font-semibold text-sm text-ink-900">Word colors</h3>
+        <p className="text-xs text-ink-600 mt-0.5">
+          Force a specific color on every occurrence of a word or phrase. The AI is told to wrap matching words; the renderer applies the color you pick.
+        </p>
+      </div>
+      <div className="space-y-2">
+        {value.map((wc, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <input
+              type="text"
+              value={wc.word}
+              onChange={(e) => update(idx, { word: e.target.value })}
+              placeholder="Word or phrase (e.g. ADHD)"
+              className="input flex-1 text-sm"
+            />
+            <input
+              type="color"
+              value={wc.color}
+              onChange={(e) => update(idx, { color: e.target.value })}
+              className="w-10 h-9 rounded-lg border border-ink-200 cursor-pointer"
+              title={wc.color}
+            />
+            <input
+              type="text"
+              value={wc.color}
+              onChange={(e) => update(idx, { color: e.target.value })}
+              className="input w-24 text-xs font-mono"
+              maxLength={9}
+            />
+            <button
+              onClick={() => remove(idx)}
+              className="shrink-0 w-9 h-9 rounded-lg border border-ink-200 hover:bg-rose-50 hover:border-rose-200 text-ink-600 hover:text-rose-600 flex items-center justify-center"
+              title="Remove"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={add}
+          className="text-xs px-3 py-1.5 rounded-lg border border-ink-200 hover:bg-cream-100 text-ink-700"
+        >
+          + Add word
+        </button>
+      </div>
     </div>
   )
 }

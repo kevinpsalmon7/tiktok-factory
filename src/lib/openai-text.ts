@@ -85,6 +85,8 @@ type GenerateArgs = {
   carouselTag?: string
   // Min/max number of "content" slides the LLM must generate
   contentSlideRange?: { min: number; max: number }
+  // Per-word color directives — the LLM wraps matching occurrences in {{...}}
+  wordColors?: { word: string; color: string }[]
   // Accepted for API parity with anthropic.ts (Anthropic-only feature, ignored here)
   useCache?: boolean
 }
@@ -136,7 +138,12 @@ export async function generateCarousels({
   log,
   carouselTag = '',
   contentSlideRange,
+  wordColors,
 }: GenerateArgs) {
+  const wordColorList = (wordColors ?? []).filter(wc => wc.word && wc.color)
+  const wordColorBlock = wordColorList.length > 0
+    ? `\n\nWORD COLORS — MANDATORY:\n- Every occurrence of the following exact words/phrases MUST be wrapped in {{...}} markers.\n- Match is case-insensitive but the wrapped text must preserve the original casing.\n- Do NOT wrap any word that is not in this list.\n- Words to wrap: ${wordColorList.map(wc => `"${wc.word}"`).join(', ')}\n- Example: if "ADHD" is in the list, write "Living with {{ADHD}} is hard" (not "Living with ADHD is hard").`
+    : ''
   const client = new OpenAI({ apiKey })
 
   const masterBlock = masterInstructions
@@ -190,7 +197,7 @@ HIGHLIGHT RULES — MANDATORY, NO EXCEPTIONS:
 - For every text role marked [HIGHLIGHT ENABLED], you MUST include ==...== markers in the text.
 - Every such field MUST contain at least one ==highlighted passage==.
 - If a field is marked [HIGHLIGHT ENABLED] and you produce text without any ==...== markers, the output is INVALID.
-- Choose the 1 to 3 most emotionally resonant words or short phrases and wrap them: ==like this==.
+- Choose the 1 to 3 most emotionally resonant words or short phrases and wrap them: ==like this==.${wordColorBlock}
 
 Allowed slide_type values: ${slideTypeNames.map((s) => `"${s}"`).join(', ')}.
 
