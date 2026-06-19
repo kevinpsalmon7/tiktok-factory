@@ -37,7 +37,9 @@ export function makeSeededRandom(seed: string): () => number {
  * input produces the same output across multiple calls within a batch.
  */
 export function resolveChoices(text: string, rand: () => number = Math.random): string {
-  return text.replace(/\[\[([^\]]+)\]\]/g, (_match, raw: string) => {
+  // Match [[ ... ]] allowing a single ] inside an option (only ]] closes the block).
+  // ((?:[^\]]|\](?!\]))+) = any non-] char, OR a ] that is not followed by another ].
+  return text.replace(/\[\[((?:[^\]]|\](?!\]))+)\]\]/g, (_match, raw: string) => {
     const options = raw.split('|').map(s => s.trim()).filter(Boolean)
     if (options.length === 0) return ''
     if (options.length === 1) {

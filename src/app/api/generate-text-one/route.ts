@@ -297,8 +297,17 @@ export async function POST(request: Request) {
     }
 
     const MAX_HL_ATTEMPTS = 3
+    // Randomization is a FALLBACK, never an override. The user's explicit request
+    // (title, topic, angle, number…) always wins; the randomized picks below only
+    // fill the dimensions the user left unspecified. Without this guard, the
+    // template's "MANDATORY" randomization wording overrides an explicit user title.
+    const randomizationBlock = resolvedRandomization
+      ? '\n\n---\nDEFAULT RANDOMIZATION — FALLBACK ONLY (lower priority than the user request above):\n'
+        + 'The user request above ALWAYS takes absolute priority. If the user specified a title, topic, subject, angle, format or number, you MUST follow it exactly and IGNORE any randomized pick below that conflicts with it. Apply a randomized pick below ONLY for the dimensions the user did NOT specify.\n\n'
+        + resolvedRandomization
+      : ''
     const basePrompt = (userPrompt || '')
-      + (resolvedRandomization ? '\n\n' + resolvedRandomization : '')
+      + randomizationBlock
       + (pageContext
         ? `\n\nPAGE DE LIVRE SÉLECTIONNÉE — OBLIGATOIRE : le titre de la slide "title" DOIT s'inspirer directement du contenu de cette page. Résumé de la page :\n"${pageContext}"`
         : '')

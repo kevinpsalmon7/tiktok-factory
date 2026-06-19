@@ -37,6 +37,7 @@ export async function extractIntent(prompt: string, apiKey: string, log?: Logger
 1. Extract the EXACT number of carousels stated (default 1 if not stated)
 2. Write a specific, UNIQUE instruction for EACH carousel — no two can overlap in topic or angle
    - Honor any explicit topic the user mentioned for specific carousels
+   - If the user imposes an EXACT title (e.g. "le titre sera X", "titre: X", "titled X", "dont le titre est X"), you MUST copy that title VERBATIM into the instruction and write: TITRE EXACT IMPOSÉ (à utiliser tel quel, ne pas reformuler): "X". Never paraphrase or genericize an imposed title.
    - For unspecified carousels, invent complementary angles from the same context
    - Keep instructions in the user's language
 
