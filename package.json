@@ -28,10 +28,10 @@
     "roughjs": "^4.6.6",
     "sharp": "^0.34.5",
     "tailwind-merge": "^2.5.4",
-    "use-image": "^1.1.1",
-    "vercel": "^53.0.1"
+    "use-image": "^1.1.1"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.13.0",
     "@types/node": "^22.9.1",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^18.3.12",

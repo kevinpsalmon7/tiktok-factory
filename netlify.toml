@@ -1,0 +1,23 @@
+# Netlify configuration for tiktok-factory (Next.js 14 App Router + Supabase).
+# Vercel config (vercel.json) is kept in parallel during the fallback period —
+# this file is ignored by Vercel and vice-versa, so both platforms stay buildable.
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Official Next.js runtime for Netlify. Handles App Router, API route handlers,
+# middleware, SSR and image optimization automatically — no manual publish dir.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# NOTE on function timeouts (IMPORTANT):
+# Netlify caps SYNCHRONOUS functions at 26s — a HARD limit. Raising the timeout
+# slider in the dashboard does NOT lift it. The Next.js API routes
+# generate-text-one and generate-image declare maxDuration=300 (Vercel only);
+# on Netlify they WILL be killed at ~26s. gpt-image-2 alone routinely takes
+# 60-180s, so these routes are effectively non-functional on Netlify as-is.
+# Until they are converted to async/background functions with client polling,
+# keep generation traffic on Vercel (the retained fallback deployment).

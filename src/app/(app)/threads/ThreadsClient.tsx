@@ -36,7 +36,7 @@ type QueuedPost = {
   content: string
   image_url: string | null
   scheduled_at: string | null
-  status: 'pending' | 'sent' | 'failed' | 'cancelled'
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'cancelled'
   sent_at: string | null
   error: string | null
   account_id: string
@@ -582,6 +582,7 @@ function QueuedPostCard({
 }) {
   const statusIcon = {
     pending: <Clock size={13} className="text-ink-400" />,
+    sending: <Loader2 size={13} className="animate-spin text-ink-400" />,
     sent: <CheckCircle2 size={13} className="text-green-500" />,
     failed: <XCircle size={13} className="text-red-400" />,
     cancelled: <XCircle size={13} className="text-ink-300" />,

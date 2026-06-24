@@ -4,15 +4,21 @@ import { createClient } from '@/lib/supabase/server'
 export const maxDuration = 60
 
 /**
- * Called by Vercel Cron every 5 minutes.
- * Fetches all pending threads_posts where scheduled_at <= now() and publishes them.
- * Protected by CRON_SECRET — Vercel passes it automatically as Bearer token.
+ * Called every 5 minutes by the scheduler (Vercel Cron and/or the Netlify
+ * scheduled function netlify/functions/threads-cron.mjs).
+ * get_due_threads_posts atomically CLAIMS due posts (pending -> 'sending') and
+ * returns them, so overlapping invocations can never publish the same post twice.
+ * Each post is then published and marked sent/failed via SECURITY DEFINER RPCs
+ * (a plain UPDATE would no-op: the cron has no session, owner-only RLS blocks it).
+ * Protected by CRON_SECRET, passed as a Bearer token.
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // Fail closed: if no secret is configured, reject rather than leave this
+  // publish endpoint world-callable.
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -81,25 +87,23 @@ export async function GET(request: NextRequest) {
       const publishedData = await publishRes.json()
       if (!publishedData.id) throw new Error(`Publish failed: ${JSON.stringify(publishedData)}`)
 
-      // Mark sent
+      // Mark sent via SECURITY DEFINER RPC (a plain UPDATE no-ops under owner-only
+      // RLS because the cron has no user session).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from('threads_posts') as any)
-        .update({
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-          threads_post_id: publishedData.id,
-          error: null,
-        })
-        .eq('id', post.post_id)
+      await (supabase as any).rpc('mark_threads_post_sent', {
+        p_post_id: post.post_id,
+        p_threads_post_id: publishedData.id,
+      })
 
       published++
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.error(`[threads/cron] Failed to publish post ${post.post_id}:`, message)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from('threads_posts') as any)
-        .update({ status: 'failed', error: message })
-        .eq('id', post.post_id)
+      await (supabase as any).rpc('mark_threads_post_failed', {
+        p_post_id: post.post_id,
+        p_error: message,
+      })
       failed++
     }
   }
