@@ -8,16 +8,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/login')
+  const { data: profile } = user
+    ? await supabase
+        .from('profiles')
+        .select('full_name, avatar_url')
+        .eq('id', user.id)
+        .single<{ full_name: string | null; avatar_url: string | null }>()
+    : { data: null }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, avatar_url')
-    .eq('id', user.id)
-    .single<{ full_name: string | null; avatar_url: string | null }>()
-
-  const displayName = profile?.full_name || user.email?.split('@')[0] || null
-  const avatarUrl = profile?.avatar_url || user.user_metadata?.avatar_url || null
+  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Private workspace'
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url || null
 
   return (
     <div className="h-screen flex bg-cream-50 overflow-hidden">

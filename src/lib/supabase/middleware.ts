@@ -30,20 +30,11 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const pathname = request.nextUrl.pathname
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/auth')
-  const isPublicRoute = pathname === '/' || pathname.startsWith('/_next') || pathname.startsWith('/api/public')
-
-  if (!user && !isAuthRoute && !isPublicRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
-  }
-
-  if (user && pathname === '/login') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+  // Private single-user app: create a Supabase anonymous session automatically
+  // so the UI never needs to expose a login screen. Anonymous auth must be
+  // enabled in the Supabase project settings.
+  if (!user) {
+    await supabase.auth.signInAnonymously()
   }
 
   return supabaseResponse

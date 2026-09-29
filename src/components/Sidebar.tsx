@@ -7,13 +7,11 @@ import {
   Images,
   LayoutTemplate,
   Settings,
-  LogOut,
   History,
   ScrollText,
   Archive,
   MessageCircle,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
 type NavItem = { href: string; label: string; icon: React.ElementType }
@@ -36,12 +34,6 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
 
-  async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
-  }
 
   return (
     <aside className="w-[88px] bg-ink-900 text-white/80 flex flex-col items-stretch py-5 rounded-[28px] m-4 mr-0">
@@ -55,14 +47,6 @@ export function Sidebar() {
       <div className="flex-1" />
 
       <NavSection label="Tools" items={toolsItems} pathname={pathname} />
-
-      <button
-        onClick={handleLogout}
-        className="mx-3 mt-4 flex items-center justify-center gap-2 px-2 py-3 rounded-xl hover:bg-ink-700 transition"
-        title="Log out"
-      >
-        <LogOut size={18} />
-      </button>
 
       <Link
         href="/privacy"
